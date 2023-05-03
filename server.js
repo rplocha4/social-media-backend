@@ -21,7 +21,9 @@ connection.connect((error) => {
   if (error) throw error;
   console.log('Successfully connected to the database.');
 });
-app.get('/users', function (req, res) {});
+app.get('/users', function (req, res) {
+  res.send('Hello World!');
+});
 app.listen(port, () => {
   console.log(`App running on port ${port}.`);
 });
