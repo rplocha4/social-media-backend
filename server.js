@@ -21,7 +21,8 @@ connection.connect((error) => {
   if (error) throw error;
   console.log('Successfully connected to the database.');
 });
-app.get('/api/posts/friends/:user_id', function (req, res) {
+
+app.get('/api/posts/friends/:user_id', async function (req, res) {
   // get all posts from user friends
   connection.query(
     'SELECT * FROM Posts WHERE user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?)',
@@ -32,7 +33,7 @@ app.get('/api/posts/friends/:user_id', function (req, res) {
     }
   );
 });
-app.post('/api/posts/:user_id', function (req, res) {
+app.post('/api/posts/:user_id', async function (req, res) {
   // create new post
   connection.query(
     'INSERT INTO Posts (user_id, content) VALUES (?, ?)',
@@ -43,7 +44,7 @@ app.post('/api/posts/:user_id', function (req, res) {
     }
   );
 });
-app.get('/api/posts/:user_id/', function (req, res) {
+app.get('/api/posts/:user_id/', async function (req, res) {
   // get all posts from user
   connection.query(
     'SELECT * FROM Posts WHERE user_id = ?',
@@ -54,7 +55,7 @@ app.get('/api/posts/:user_id/', function (req, res) {
     }
   );
 });
-app.get('/api/post/:post_id', function (req, res) {
+app.get('/api/post/:post_id', async function (req, res) {
   // get post by id
   connection.query(
     'SELECT * FROM Posts WHERE post_id = ?',
@@ -65,7 +66,7 @@ app.get('/api/post/:post_id', function (req, res) {
     }
   );
 });
-app.get('/api/likes/:post_id', function (req, res) {
+app.get('/api/likes/:post_id', async function (req, res) {
   // get likes from post
   connection.query(
     'SELECT * FROM Likes WHERE post_id = ?',
@@ -76,7 +77,7 @@ app.get('/api/likes/:post_id', function (req, res) {
     }
   );
 });
-app.get('/api/comments/:post_id', function (req, res) {
+app.get('/api/comments/:post_id', async function (req, res) {
   // get comments from post
   connection.query(
     'SELECT * FROM Comments WHERE post_id = ?',
@@ -87,7 +88,7 @@ app.get('/api/comments/:post_id', function (req, res) {
     }
   );
 });
-app.post('/api/likes/:post_id/:user_id', function (req, res) {
+app.post('/api/likes/:post_id/:user_id', async function (req, res) {
   // create new like
   connection.query(
     'INSERT INTO Likes (post_id, user_id) VALUES (?, ?)',
@@ -98,7 +99,7 @@ app.post('/api/likes/:post_id/:user_id', function (req, res) {
     }
   );
 });
-app.post('/api/comments/:post_id/:user_id', function (req, res) {
+app.post('/api/comments/:post_id/:user_id', async function (req, res) {
   // create new comment
   connection.query(
     'INSERT INTO Comments (post_id, user_id, content) VALUES (?, ?, ?)',
@@ -109,7 +110,7 @@ app.post('/api/comments/:post_id/:user_id', function (req, res) {
     }
   );
 });
-app.post('/api/reply/:comment_id/:user_id', function (req, res) {
+app.post('/api/reply/:comment_id/:user_id', async function (req, res) {
   // create new reply
   connection.query(
     'INSERT INTO Replies (comment_id, user_id, content) VALUES (?, ?, ?)',
@@ -120,7 +121,7 @@ app.post('/api/reply/:comment_id/:user_id', function (req, res) {
     }
   );
 });
-app.get('/api/replies/:comment_id', function (req, res) {
+app.get('/api/replies/:comment_id', async function (req, res) {
   // get replies from comment
   connection.query(
     'SELECT * FROM Replies WHERE comment_id = ?',
@@ -131,7 +132,7 @@ app.get('/api/replies/:comment_id', function (req, res) {
     }
   );
 });
-app.get('/api/replyLikes/:reply_id', function (req, res) {
+app.get('/api/replyLikes/:reply_id', async function (req, res) {
   // get likes from reply
   connection.query(
     'SELECT * FROM RepliesLikes WHERE reply_id = ?',
@@ -142,7 +143,7 @@ app.get('/api/replyLikes/:reply_id', function (req, res) {
     }
   );
 });
-app.post('/api/replyLikes/:reply_id/:user_id', function (req, res) {
+app.post('/api/replyLikes/:reply_id/:user_id', async function (req, res) {
   // create new reply like
   connection.query(
     'INSERT INTO RepliesLikes (reply_id, user_id) VALUES (?, ?)',
