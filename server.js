@@ -87,6 +87,72 @@ app.get('/api/comments/:post_id', function (req, res) {
     }
   );
 });
+app.post('/api/likes/:post_id/:user_id', function (req, res) {
+  // create new like
+  connection.query(
+    'INSERT INTO Likes (post_id, user_id) VALUES (?, ?)',
+    [req.params.post_id, req.params.user_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.post('/api/comments/:post_id/:user_id', function (req, res) {
+  // create new comment
+  connection.query(
+    'INSERT INTO Comments (post_id, user_id, content) VALUES (?, ?, ?)',
+    [req.params.post_id, req.params.user_id, req.body.content],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.post('/api/reply/:comment_id/:user_id', function (req, res) {
+  // create new reply
+  connection.query(
+    'INSERT INTO Replies (comment_id, user_id, content) VALUES (?, ?, ?)',
+    [req.params.comment_id, req.params.user_id, req.body.content],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.get('/api/replies/:comment_id', function (req, res) {
+  // get replies from comment
+  connection.query(
+    'SELECT * FROM Replies WHERE comment_id = ?',
+    [req.params.comment_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.get('/api/replyLikes/:reply_id', function (req, res) {
+  // get likes from reply
+  connection.query(
+    'SELECT * FROM RepliesLikes WHERE reply_id = ?',
+    [req.params.reply_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.post('/api/replyLikes/:reply_id/:user_id', function (req, res) {
+  // create new reply like
+  connection.query(
+    'INSERT INTO RepliesLikes (reply_id, user_id) VALUES (?, ?)',
+    [req.params.reply_id, req.params.user_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
 
 app.listen(port, () => {
   console.log(`App running on port ${port}.`);
