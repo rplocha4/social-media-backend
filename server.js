@@ -65,6 +65,28 @@ app.get('/api/post/:post_id', function (req, res) {
     }
   );
 });
+app.get('/api/likes/:post_id', function (req, res) {
+  // get likes from post
+  connection.query(
+    'SELECT * FROM Likes WHERE post_id = ?',
+    [req.params.post_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.get('/api/comments/:post_id', function (req, res) {
+  // get comments from post
+  connection.query(
+    'SELECT * FROM Comments WHERE post_id = ?',
+    [req.params.post_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
 
 app.listen(port, () => {
   console.log(`App running on port ${port}.`);
