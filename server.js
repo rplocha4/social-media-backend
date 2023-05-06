@@ -23,13 +23,14 @@ connection.connect((error) => {
 });
 
 app.get('/api/posts/friends/:user_id', async function (req, res) {
-  // get all posts from user friends
+  // get all posts from user friends with user username and profile picture
+
   connection.query(
-    'SELECT * FROM Posts WHERE user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?)',
+    'SELECT Posts.*, Users.username, Users.avatar FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?) ORDER BY Posts.timestamp DESC',
     [req.params.user_id],
     (error, results) => {
-      if (error) throw error;
-      res.send(results);
+      if (error) res.status(404).send({ message: 'Posts not found' });
+      res.status(200).json({ data: results });
     }
   );
 });
@@ -56,13 +57,13 @@ app.get('/api/posts/:user_id/', async function (req, res) {
   );
 });
 app.get('/api/post/:post_id', async function (req, res) {
-  // get post by id
+  // get post by id with username and profile picture
   connection.query(
-    'SELECT * FROM Posts WHERE post_id = ?',
+    'SELECT Posts.*, Users.username, Users.avatar FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.post_id = ?',
     [req.params.post_id],
     (error, results) => {
-      if (error) throw error;
-      res.send(results);
+      if (error) res.status(404).send({ message: 'Post not found' });
+      res.status(200).json({ data: results[0] });
     }
   );
 });
@@ -72,19 +73,19 @@ app.get('/api/likes/:post_id', async function (req, res) {
     'SELECT * FROM Likes WHERE post_id = ?',
     [req.params.post_id],
     (error, results) => {
-      if (error) throw error;
-      res.send(results);
+      if (error) res.status(404).send({ message: 'Likes not found' });
+      res.status(200).json({ data: results });
     }
   );
 });
 app.get('/api/comments/:post_id', async function (req, res) {
   // get comments from post
   connection.query(
-    'SELECT * FROM Comments WHERE post_id = ?',
+    'SELECT Comments.*, Users.username FROM Comments INNER JOIN Users ON Comments.user_id = Users.user_id WHERE Comments.post_id = ?',
     [req.params.post_id],
     (error, results) => {
-      if (error) throw error;
-      res.send(results);
+      if (error) res.status(404).send({ message: 'Comments not found' });
+      res.status(200).json({ data: results });
     }
   );
 });
