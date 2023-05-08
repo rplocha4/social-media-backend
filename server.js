@@ -23,25 +23,25 @@ connection.connect((error) => {
 });
 
 app.get('/api/posts/friends/:user_id', async function (req, res) {
-  // get all posts from user friends with user username and profile picture
+  // get all posts from user friends with user username and profile picture, also get the all comments, and likes from each post and check if user liked the post
 
   connection.query(
-    'SELECT Posts.*, Users.username, Users.avatar FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?) ORDER BY Posts.timestamp DESC',
-    [req.params.user_id],
+    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?) ORDER BY Posts.timestamp DESC',
+    [req.params.user_id, req.params.user_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
       res.status(200).json({ data: results });
     }
   );
 });
-app.post('/api/posts/:user_id', async function (req, res) {
+app.post('/api/posts/', async function (req, res) {
   // create new post
   connection.query(
     'INSERT INTO Posts (user_id, content) VALUES (?, ?)',
-    [req.params.user_id, req.body.content],
+    [req.body.user_id, req.body.content],
     (error, results) => {
-      if (error) throw error;
-      res.send(results);
+      if (error) res.status(404).send({ message: 'Posts not found' });
+      res.status(200).json({ data: results });
     }
   );
 });
@@ -78,10 +78,11 @@ app.get('/api/likes/:post_id', async function (req, res) {
     }
   );
 });
+
 app.get('/api/comments/:post_id', async function (req, res) {
   // get comments from post
   connection.query(
-    'SELECT Comments.*, Users.username FROM Comments INNER JOIN Users ON Comments.user_id = Users.user_id WHERE Comments.post_id = ?',
+    'SELECT Comments.*, Users.username FROM Comments INNER JOIN Users ON Comments.user_id = Users.user_id WHERE Comments.post_id = ? ORDER BY created_at DESC',
     [req.params.post_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Comments not found' });
@@ -100,11 +101,27 @@ app.post('/api/likes/:post_id/:user_id', async function (req, res) {
     }
   );
 });
-app.post('/api/comments/:post_id/:user_id', async function (req, res) {
+app.delete('/api/likes/:post_id/:user_id', async function (req, res) {
+  // delete like
+  connection.query(
+    'DELETE FROM Likes WHERE post_id = ? AND user_id = ?',
+    [req.params.post_id, req.params.user_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.post('/api/comments/', async function (req, res) {
   // create new comment
   connection.query(
-    'INSERT INTO Comments (post_id, user_id, content) VALUES (?, ?, ?)',
-    [req.params.post_id, req.params.user_id, req.body.content],
+    'INSERT INTO Comments (post_id, user_id, content,comment_id) VALUES (?, ?, ?,?)',
+    [
+      req.body.post_id,
+      req.body.user_id,
+      req.body.content,
+      Math.floor(Math.random() * 10000000),
+    ],
     (error, results) => {
       if (error) throw error;
       res.send(results);
