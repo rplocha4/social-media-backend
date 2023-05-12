@@ -2,6 +2,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const dbConfig = require('./config');
 const mysql = require('mysql');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = 3000;
@@ -20,6 +22,93 @@ const connection = mysql.createConnection({
 connection.connect((error) => {
   if (error) throw error;
   console.log('Successfully connected to the database.');
+});
+
+app.post('/api/auth/register', async function (req, res) {
+  // create new user
+  // check if username already exists
+  connection.query(
+    'SELECT * FROM Users WHERE email = ?',
+    [req.body.email],
+    (error, results) => {
+      if (results.length > 0) {
+        res.status(400).send({ message: 'Email already exists' });
+      } else {
+        bcrypt.hash(req.body.password, 10, (err, hash) => {
+          if (err) {
+            return res.status(500).json({
+              error: err,
+            });
+          } else {
+            connection.query(
+              'INSERT INTO Users (username, email, password) VALUES (?, ?, ?)',
+              [req.body.username, req.body.email, hash],
+              (error, results) => {
+                if (error) res.status(500).send({ message: 'Server error' });
+                res.status(201).json({ message: 'User successfully created' });
+              }
+            );
+          }
+        });
+      }
+    }
+  );
+});
+
+app.post('/api/auth/login', async function (req, res) {
+  // login user
+  // check if username exists
+  connection.query(
+    'SELECT * FROM Users WHERE username = ?',
+    [req.body.username],
+    (error, results) => {
+      if (results.length > 0) {
+        // check if password is correct
+        bcrypt.compare(
+          req.body.password,
+          results[0]['password'],
+          (bErr, bResult) => {
+            // wrong password
+            if (bErr) {
+              res.status(401).json({
+                message: 'Wrong password',
+              });
+            }
+            // correct password
+            if (bResult) {
+              const token = jwt.sign(
+                {
+                  username: results[0].username,
+                  userId: results[0].user_id,
+                },
+                'secret',
+                {
+                  expiresIn: '7d',
+                }
+              );
+              res.status(200).json({
+                message: 'Auth successful',
+                token: token,
+                user: results[0],
+              });
+            }
+            // wrong password
+            else {
+              res.status(401).json({
+                message: 'Wrong password',
+              });
+            }
+          }
+        );
+      }
+      // username not found
+      else {
+        res.status(401).json({
+          message: 'User not found',
+        });
+      }
+    }
+  );
 });
 
 app.get('/api/posts/friends/:user_id', async function (req, res) {
@@ -82,7 +171,7 @@ app.get('/api/likes/:post_id', async function (req, res) {
 app.get('/api/comments/:post_id', async function (req, res) {
   // get comments from post
   connection.query(
-    'SELECT Comments.*, Users.username FROM Comments INNER JOIN Users ON Comments.user_id = Users.user_id WHERE Comments.post_id = ? ORDER BY created_at DESC',
+    'SELECT Comments.*, Users.username, Users.avatar FROM Comments INNER JOIN Users ON Comments.user_id = Users.user_id WHERE Comments.post_id = ? ORDER BY created_at DESC',
     [req.params.post_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Comments not found' });
@@ -115,7 +204,7 @@ app.delete('/api/likes/:post_id/:user_id', async function (req, res) {
 app.post('/api/comments/', async function (req, res) {
   // create new comment
   connection.query(
-    'INSERT INTO Comments (post_id, user_id, content,comment_id) VALUES (?, ?, ?,?)',
+    'INSERT INTO Comments (post_id, user_id, content,comment_id) VALUES (?, ?, ?, ?)',
     [
       req.body.post_id,
       req.body.user_id,
