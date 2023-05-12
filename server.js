@@ -144,14 +144,16 @@ app.post('/api/posts/', async function (req, res) {
     }
   );
 });
-app.get('/api/posts/:user_id/', async function (req, res) {
-  // get all posts from user
+app.get('/api/posts/:username/', async function (req, res) {
+  //find user_id by username and then get all posts from user_id
+  // find user_id by username
+
   connection.query(
-    'SELECT * FROM Posts WHERE user_id = ?',
-    [req.params.user_id],
+    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = (SELECT user_id FROM Users WHERE username = ?)) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id = (SELECT user_id FROM Users WHERE username = ?) ORDER BY Posts.timestamp DESC',
+    [req.params.username, req.params.username],
     (error, results) => {
-      if (error) throw error;
-      res.send(results);
+      if (error) res.status(404).send({ message: 'Posts not found' });
+      res.status(200).json({ data: results });
     }
   );
 });
@@ -173,6 +175,30 @@ app.get('/api/likes/:post_id', async function (req, res) {
     [req.params.post_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Likes not found' });
+      res.status(200).json({ data: results });
+    }
+  );
+});
+
+app.get('/api/user/likes/:username', async function (req, res) {
+  // find user_id by username and then get all posts that user liked
+  connection.query(
+    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.post_id IN (SELECT post_id FROM Likes WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) ORDER BY Posts.timestamp DESC',
+    [req.params.username, req.params.username],
+    (error, results) => {
+      if (error) res.status(404).send({ message: 'Likes not found' });
+      res.status(200).json({ data: results });
+    }
+  );
+});
+
+app.get('/api/user/comments/:username', async function (req, res) {
+  // find user_id by username and then get all posts that user commented on
+  connection.query(
+    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.post_id IN (SELECT post_id FROM Comments WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) ORDER BY Posts.timestamp DESC',
+    [req.params.username, req.params.username],
+    (error, results) => {
+      if (error) res.status(404).send({ message: 'Comments not found' });
       res.status(200).json({ data: results });
     }
   );
