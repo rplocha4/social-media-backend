@@ -4,8 +4,10 @@ const dbConfig = require('./config');
 const mysql = require('mysql');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const cors = require('cors');
 
 const app = express();
+app.use(cors());
 const port = 3000;
 app.use(bodyParser.json());
 app.use(
@@ -112,16 +114,24 @@ app.post('/api/auth/login', async function (req, res) {
 });
 
 app.get('/api/posts/friends/:user_id', async function (req, res) {
-  // get all posts from user friends with user username and profile picture, also get the all comments, and likes from each post and check if user liked the post
-
+  // get all posts from user friends and self with user username and profile picture, also get the all comments, and likes from each post and check if user liked the post
   connection.query(
-    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?) ORDER BY Posts.timestamp DESC',
-    [req.params.user_id, req.params.user_id],
+    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?) OR Posts.user_id = ? ORDER BY Posts.timestamp DESC',
+    [req.params.user_id, req.params.user_id, req.params.user_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
       res.status(200).json({ data: results });
     }
   );
+
+  // connection.query(
+  //   'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?) ORDER BY Posts.timestamp DESC',
+  //   [req.params.user_id, req.params.user_id],
+  //   (error, results) => {
+  //     if (error) res.status(404).send({ message: 'Posts not found' });
+  //     res.status(200).json({ data: results });
+  //   }
+  // );
 });
 app.post('/api/posts/', async function (req, res) {
   // create new post
