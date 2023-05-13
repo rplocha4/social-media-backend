@@ -147,10 +147,12 @@ app.post('/api/posts/', async function (req, res) {
 app.get('/api/posts/:username/', async function (req, res) {
   //find user_id by username and then get all posts from user_id
   // find user_id by username
-  console.log(req.headers.authorization);
+  const token = req.headers.authorization.split(' ')[1];
+  const decoded = jwt.verify(token, 'secret');
+  const username = decoded.username;
   connection.query(
     'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = (SELECT user_id FROM Users WHERE username = ?)) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id = (SELECT user_id FROM Users WHERE username = ?) ORDER BY Posts.timestamp DESC',
-    [req.params.username, req.params.username],
+    [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
       res.status(200).json({ data: results });
@@ -182,9 +184,12 @@ app.get('/api/likes/:post_id', async function (req, res) {
 
 app.get('/api/user/likes/:username', async function (req, res) {
   // find user_id by username and then get all posts that user liked
+  const token = req.headers.authorization.split(' ')[1];
+  const decoded = jwt.verify(token, 'secret');
+  const username = decoded.username;
   connection.query(
     'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = (SELECT user_id FROM Users WHERE username = ?)) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.post_id IN (SELECT post_id FROM Likes WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) ORDER BY Posts.timestamp DESC',
-    [req.params.username, req.params.username],
+    [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Likes not found' });
       res.status(200).json({ data: results });
@@ -194,9 +199,12 @@ app.get('/api/user/likes/:username', async function (req, res) {
 
 app.get('/api/user/comments/:username', async function (req, res) {
   // find user_id by username and then get all posts that user commented on
+  const token = req.headers.authorization.split(' ')[1];
+  const decoded = jwt.verify(token, 'secret');
+  const username = decoded.username;
   connection.query(
-    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.post_id IN (SELECT post_id FROM Comments WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) ORDER BY Posts.timestamp DESC',
-    [req.params.username, req.params.username],
+    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = (SELECT user_id FROM Users WHERE username = ?)) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.post_id IN (SELECT post_id FROM Comments WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) ORDER BY Posts.timestamp DESC',
+    [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Comments not found' });
       res.status(200).json({ data: results });
@@ -226,6 +234,55 @@ app.post('/api/likes/:post_id/:user_id', async function (req, res) {
     }
   );
 });
+
+app.get('/api/user/:username', async function (req, res) {
+  // get user by username with  count of people that user follows and count of people that follow user
+  connection.query(
+    'SELECT Users.*, (SELECT COUNT(*) FROM Friends WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) AS following, (SELECT COUNT(*) FROM Friends WHERE friend_id = (SELECT user_id FROM Users WHERE username = ?)) AS followers FROM Users WHERE username = ?',
+    [req.params.username, req.params.username, req.params.username],
+    (error, results) => {
+      if (error) res.status(404).send({ message: 'User not found' });
+      res.status(200).json({ data: results[0] });
+    }
+  );
+});
+
+// app.get('/api/friends/:user_id', async function (req, res) {
+//   // get friends from user
+//   connection.query(
+//     'SELECT Users.* FROM Users INNER JOIN Friends ON Users.user_id = Friends.friend_id WHERE Friends.user_id = ?',
+//     [req.params.user_id],
+//     (error, results) => {
+//       if (error) res.status(404).send({ message: 'Friends not found' });
+//       res.status(200).json({ data: results });
+//     }
+//   );
+// });
+
+app.get('/api/followers/:user_id', async function (req, res) {
+  // get followers from user
+  connection.query(
+    'SELECT Users.* FROM Users INNER JOIN Friends ON Users.user_id = Friends.follower_id WHERE Friends.user_id = ?',
+    [req.params.user_id],
+    (error, results) => {
+      if (error) res.status(404).send({ message: 'Friends not found' });
+      res.status(200).json({ data: results });
+    }
+  );
+});
+
+app.get('/api/following/:user_id', async function (req, res) {
+  // get following from user
+  connection.query(
+    'SELECT Users.* FROM Users INNER JOIN Friends ON Users.user_id = Friends.user_id WHERE Friends.follower_id = ?',
+    [req.params.user_id],
+    (error, results) => {
+      if (error) res.status(404).send({ message: 'Following not found' });
+      res.status(200).json({ data: results });
+    }
+  );
+});
+
 app.delete('/api/likes/:post_id/:user_id', async function (req, res) {
   // delete like
   connection.query(
