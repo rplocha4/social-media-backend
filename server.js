@@ -30,6 +30,15 @@ connection.connect((error) => {
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+function convertImages(results) {
+  for (let i = 0; i < results.length; i++) {
+    if (results[i].image === null) continue;
+    results[i].image =
+      'data:image/jpeg;base64,' + results[i].image.toString('base64');
+  }
+  return results;
+}
+
 app.post('/api/auth/register', async function (req, res) {
   // create new user
   // check if username already exists
@@ -124,11 +133,8 @@ app.get('/api/posts/friends/:user_id', async function (req, res) {
     [req.params.user_id, req.params.user_id, req.params.user_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].image === null) continue;
-        results[i].image =
-          'data:image/jpeg;base64,' + results[i].image.toString('base64');
-      }
+
+      results = convertImages(results);
       res.status(200).json({ data: results });
     }
   );
@@ -175,11 +181,8 @@ app.get('/api/posts/:username/', async function (req, res) {
     [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].image === null) continue;
-        results[i].image =
-          'data:image/jpeg;base64,' + results[i].image.toString('base64');
-      }
+
+      results = convertImages(results);
 
       res.status(200).json({ data: results });
     }
@@ -192,11 +195,8 @@ app.get('/api/post/:post_id', async function (req, res) {
     [req.params.post_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Post not found' });
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].image === null) continue;
-        results[i].image =
-          'data:image/jpeg;base64,' + results[i].image.toString('base64');
-      }
+      results = convertImages(results);
+
       res.status(200).json({ data: results[0] });
     }
   );
@@ -223,11 +223,8 @@ app.get('/api/user/likes/:username', async function (req, res) {
     [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Likes not found' });
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].image === null) continue;
-        results[i].image =
-          'data:image/jpeg;base64,' + results[i].image.toString('base64');
-      }
+      results = convertImages(results);
+
       res.status(200).json({ data: results });
     }
   );
@@ -243,11 +240,8 @@ app.get('/api/user/comments/:username', async function (req, res) {
     [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Comments not found' });
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].image === null) continue;
-        results[i].image =
-          'data:image/jpeg;base64,' + results[i].image.toString('base64');
-      }
+      results = convertImages(results);
+
       res.status(200).json({ data: results });
     }
   );
