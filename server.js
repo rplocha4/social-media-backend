@@ -150,7 +150,6 @@ app.get('/api/posts/friends/:user_id', async function (req, res) {
 });
 app.post('/api/posts/', upload.single('image'), async function (req, res) {
   // create new post
-  console.log(req.file);
   connection.query(
     'INSERT INTO Posts (user_id, content,image) VALUES (?, ?,?)',
     [req.body.user_id, req.body.content, req.file.buffer],
@@ -266,6 +265,7 @@ app.get('/api/comments/:post_id', async function (req, res) {
     [req.params.post_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Comments not found' });
+      results = convertImages(results);
       res.status(200).json({ data: results });
     }
   );
@@ -341,15 +341,17 @@ app.delete('/api/likes/:post_id/:user_id', async function (req, res) {
     }
   );
 });
-app.post('/api/comments/', async function (req, res) {
+app.post('/api/comments/', upload.single('image'), async function (req, res) {
   // create new comment
+  console.log(req.body);
   connection.query(
-    'INSERT INTO Comments (post_id, user_id, content,comment_id) VALUES (?, ?, ?, ?)',
+    'INSERT INTO Comments (post_id, user_id, content, comment_id,image) VALUES (?, ?, ?, ?,?)',
     [
       req.body.post_id,
       req.body.user_id,
       req.body.content,
       Math.floor(Math.random() * 10000000),
+      req.file.buffer,
     ],
     (error, results) => {
       if (error) throw error;
