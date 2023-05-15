@@ -124,6 +124,11 @@ app.get('/api/posts/friends/:user_id', async function (req, res) {
     [req.params.user_id, req.params.user_id, req.params.user_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].image === null) continue;
+        results[i].image =
+          'data:image/jpeg;base64,' + results[i].image.toString('base64');
+      }
       res.status(200).json({ data: results });
     }
   );
@@ -152,14 +157,30 @@ app.post('/api/posts/', upload.single('image'), async function (req, res) {
 app.get('/api/posts/:username/', async function (req, res) {
   //find user_id by username and then get all posts from user_id
   // find user_id by username
+  // convert image to base64
   const token = req.headers.authorization.split(' ')[1];
   const decoded = jwt.verify(token, 'secret');
   const username = decoded.username;
+
+  // connection.query(
+  //   'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = (SELECT user_id FROM Users WHERE username = ?)) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id = (SELECT user_id FROM Users WHERE username = ?) ORDER BY Posts.timestamp DESC',
+  //   [username, req.params.username],
+  //   (error, results) => {
+  //     if (error) res.status(404).send({ message: 'Posts not found' });
+  //     res.status(200).json({ data: results });
+  //   }
+  // );
   connection.query(
     'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = (SELECT user_id FROM Users WHERE username = ?)) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id = (SELECT user_id FROM Users WHERE username = ?) ORDER BY Posts.timestamp DESC',
     [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].image === null) continue;
+        results[i].image =
+          'data:image/jpeg;base64,' + results[i].image.toString('base64');
+      }
+
       res.status(200).json({ data: results });
     }
   );
@@ -171,6 +192,11 @@ app.get('/api/post/:post_id', async function (req, res) {
     [req.params.post_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Post not found' });
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].image === null) continue;
+        results[i].image =
+          'data:image/jpeg;base64,' + results[i].image.toString('base64');
+      }
       res.status(200).json({ data: results[0] });
     }
   );
@@ -197,6 +223,11 @@ app.get('/api/user/likes/:username', async function (req, res) {
     [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Likes not found' });
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].image === null) continue;
+        results[i].image =
+          'data:image/jpeg;base64,' + results[i].image.toString('base64');
+      }
       res.status(200).json({ data: results });
     }
   );
@@ -212,7 +243,12 @@ app.get('/api/user/comments/:username', async function (req, res) {
     [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Comments not found' });
-      image: image ? image : null, res.status(200).json({ data: results });
+      for (let i = 0; i < results.length; i++) {
+        if (results[i].image === null) continue;
+        results[i].image =
+          'data:image/jpeg;base64,' + results[i].image.toString('base64');
+      }
+      res.status(200).json({ data: results });
     }
   );
 });
