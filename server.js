@@ -5,6 +5,7 @@ const mysql = require('mysql');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const multer = require('multer');
 
 const app = express();
 app.use(cors());
@@ -25,6 +26,9 @@ connection.connect((error) => {
   if (error) throw error;
   console.log('Successfully connected to the database.');
 });
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 app.post('/api/auth/register', async function (req, res) {
   // create new user
@@ -133,11 +137,12 @@ app.get('/api/posts/friends/:user_id', async function (req, res) {
   //   }
   // );
 });
-app.post('/api/posts/', async function (req, res) {
+app.post('/api/posts/', upload.single('image'), async function (req, res) {
   // create new post
+  console.log(req.file);
   connection.query(
-    'INSERT INTO Posts (user_id, content) VALUES (?, ?)',
-    [req.body.user_id, req.body.content],
+    'INSERT INTO Posts (user_id, content,image) VALUES (?, ?,?)',
+    [req.body.user_id, req.body.content, req.file.buffer],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
       res.status(200).json({ data: results });
@@ -207,7 +212,7 @@ app.get('/api/user/comments/:username', async function (req, res) {
     [username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Comments not found' });
-      res.status(200).json({ data: results });
+      image: image ? image : null, res.status(200).json({ data: results });
     }
   );
 });
