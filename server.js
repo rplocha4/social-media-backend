@@ -32,9 +32,16 @@ const upload = multer({ storage });
 
 function convertImages(results) {
   for (let i = 0; i < results.length; i++) {
-    if (results[i].image === null) continue;
     results[i].image =
+      results[i].image &&
       'data:image/jpeg;base64,' + results[i].image.toString('base64');
+    results[i].avatar =
+      results[i].avatar &&
+      'data:image/jpeg;base64,' + results[i].avatar.toString('base64');
+    results[i].background_image =
+      results[i].background_image &&
+      'data:image/jpeg;base64,' +
+        results[i].background_image.toString('base64');
   }
   return results;
 }
@@ -105,6 +112,10 @@ app.post('/api/auth/login', async function (req, res) {
                 message: 'Auth successful',
                 token: token,
                 user: results[0],
+                avatar:
+                  results[0].avatar &&
+                  'data:image/jpeg;base64,' +
+                    results[0].avatar.toString('base64'),
               });
             }
             // wrong password
@@ -149,10 +160,15 @@ app.get('/api/posts/friends/:user_id', async function (req, res) {
   // );
 });
 app.post('/api/posts/', upload.single('image'), async function (req, res) {
-  // create new post
+  // create new post with or without image
+  let file = req.file;
+  if (file !== undefined) {
+    file = file.buffer;
+  }
+
   connection.query(
     'INSERT INTO Posts (user_id, content,image) VALUES (?, ?,?)',
-    [req.body.user_id, req.body.content, req.file.buffer],
+    [req.body.user_id, req.body.content, file],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
       res.status(200).json({ data: results });
@@ -289,6 +305,8 @@ app.get('/api/user/:username', async function (req, res) {
     [req.params.username, req.params.username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'User not found' });
+      results = convertImages(results);
+
       res.status(200).json({ data: results[0] });
     }
   );
@@ -343,15 +361,18 @@ app.delete('/api/likes/:post_id/:user_id', async function (req, res) {
 });
 app.post('/api/comments/', upload.single('image'), async function (req, res) {
   // create new comment
-  console.log(req.body);
+  let file = req.file;
+  if (file !== undefined) {
+    file = file.buffer;
+  }
   connection.query(
-    'INSERT INTO Comments (post_id, user_id, content, comment_id,image) VALUES (?, ?, ?, ?,?)',
+    'INSERT INTO Comments (post_id, user_id, content, comment_id, image) VALUES (?, ?, ?, ?,?)',
     [
       req.body.post_id,
       req.body.user_id,
       req.body.content,
       Math.floor(Math.random() * 10000000),
-      req.file.buffer,
+      file,
     ],
     (error, results) => {
       if (error) throw error;
@@ -359,6 +380,36 @@ app.post('/api/comments/', upload.single('image'), async function (req, res) {
     }
   );
 });
+
+app.put('/api/user/', upload.single('image'), async function (req, res) {
+  // update users avatar or background image if it is not null
+  const token = req.headers.authorization.split(' ')[1];
+  const decoded = jwt.verify(token, 'secret');
+  const userId = decoded.userId;
+
+  if (req.body.user_id != userId) return;
+  if (req.body.avatar === 'true') {
+    connection.query(
+      'UPDATE Users SET avatar = ? WHERE user_id = ?',
+      [req.file.buffer, userId],
+      (error, results) => {
+        if (error) throw error;
+        res.send(results);
+      }
+    );
+  }
+  if (req.body.background === 'true') {
+    connection.query(
+      'UPDATE Users SET background_image = ? WHERE user_id = ?',
+      [req.file.buffer, userId],
+      (error, results) => {
+        if (error) throw error;
+        res.send(results);
+      }
+    );
+  }
+});
+
 app.post('/api/reply/:comment_id/:user_id', async function (req, res) {
   // create new reply
   connection.query(
