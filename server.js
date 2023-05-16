@@ -269,6 +269,7 @@ app.get('/api/search/:search', async function (req, res) {
     ['%' + req.params.search + '%'],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Users not found' });
+      results = convertImages(results);
       res.status(200).json({ data: results });
     }
   );
