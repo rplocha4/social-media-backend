@@ -137,6 +137,7 @@ app.post('/api/auth/register', async function (req, res) {
 app.post('/api/auth/login', async function (req, res) {
   // login user
   // check if username exists
+  console.log(req.body);
   connection.query(
     'SELECT * FROM Users WHERE username = ?',
     [req.body.username],
@@ -482,11 +483,13 @@ app.put('/api/user/', upload.single('image'), async function (req, res) {
       [req.file.buffer, userId],
       (error, results) => {
         if (error) throw error;
-        res.send(results);
+        const avatar =
+          'data:image/png;base64,' + req.file.buffer.toString('base64');
+        res.send({ avatar });
       }
     );
   }
-  if (req.body.background === 'true') {
+  if (req.body.background_image === 'true') {
     connection.query(
       'UPDATE Users SET background_image = ? WHERE user_id = ?',
       [req.file.buffer, userId],
@@ -496,6 +499,78 @@ app.put('/api/user/', upload.single('image'), async function (req, res) {
       }
     );
   }
+});
+
+app.get('/api/messages/:user1_id/:user2_id', async function (req, res) {
+  // find conversation between two users and get all messages from that conversation
+  connection.query(
+    'SELECT * FROM conversations WHERE (user1_id = ? AND user2_id  = ?) OR (user1_id = ? AND user2_id  = ?)',
+    [
+      req.params.user1_id,
+      req.params.user2_id,
+      req.params.user2_id,
+      req.params.user1_id,
+    ],
+    (error, results) => {
+      if (error) throw error;
+      if (results.length === 0) {
+        res.send([]);
+      } else {
+        connection.query(
+          'SELECT * FROM messages WHERE conversation_id = ?',
+          [results[0].conversation_id],
+          (error, results) => {
+            if (error) throw error;
+            res.send(results);
+          }
+        );
+      }
+    }
+  );
+});
+
+app.post('/api/messages/', async function (req, res) {
+  // create new message
+  // check if conversation between users already exists if not create new conversation and add message to it
+  // console.log(req.body);
+  connection.query(
+    'SELECT * FROM conversations WHERE (user1_id = ? AND user2_id  = ?) OR (user1_id = ? AND user2_id  = ?)',
+    [
+      req.body.user1_id,
+      req.body.user2_id,
+      req.body.user2_id,
+      req.body.user1_id,
+    ],
+    (error, results) => {
+      if (error) throw error;
+      if (results.length === 0) {
+        connection.query(
+          'INSERT INTO conversations (user1_id, user2_id) VALUES (?, ?)',
+          [req.body.user1_id, req.body.user2_id],
+          (error, results) => {
+            if (error) throw error;
+            connection.query(
+              'INSERT INTO messages (conversation_id, sender_id, message) VALUES (?, ?, ?)',
+              [results.insertId, req.body.user1_id, req.body.message],
+              (error, results) => {
+                if (error) throw error;
+                res.send(results);
+              }
+            );
+          }
+        );
+      } else {
+        connection.query(
+          'INSERT INTO messages (conversation_id, sender_id, message) VALUES (?, ?, ?)',
+          [results[0].conversation_id, req.body.user1_id, req.body.message],
+          (error, results) => {
+            if (error) throw error;
+            res.send(results);
+          }
+        );
+      }
+    }
+  );
 });
 
 app.post('/api/reply/:comment_id/:user_id', async function (req, res) {
