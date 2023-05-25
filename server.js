@@ -6,8 +6,22 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const multer = require('multer');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: 'http://localhost:3000',
+  },
+});
+
+io.listen(3001);
+io.on('connection', (socket) => {
+  console.log('a user connected');
+});
+
 app.use(cors());
 const port = 3000;
 app.use(bodyParser.json());
@@ -29,6 +43,15 @@ connection.connect((error) => {
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
+
+function convertAvatars(results) {
+  for (let i = 0; i < results.length; i++) {
+    results[i].avatar =
+      results[i].avatar &&
+      'data:image/jpeg;base64,' + results[i].avatar.toString('base64');
+  }
+  return results;
+}
 
 function convertImages(results) {
   for (let i = 0; i < results.length; i++) {
@@ -269,7 +292,7 @@ app.get('/api/search/:search', async function (req, res) {
     ['%' + req.params.search + '%'],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Users not found' });
-      results = convertImages(results);
+      results = convertAvatars(results);
       res.status(200).json({ data: results });
     }
   );
@@ -287,6 +310,36 @@ app.get('/api/comments/:post_id', async function (req, res) {
     }
   );
 });
+
+app.delete('/api/comments/:comment_id', async function (req, res) {
+  // delete comment
+  // const token = req.headers.authorization.split(' ')[1];
+  // const decoded = jwt.verify(token, 'secret');
+  // if (decoded.userId != req.body.user_id) return;
+  connection.query(
+    'DELETE FROM Comments WHERE comment_id = ?',
+    [req.params.comment_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+app.delete('/api/posts/:post_id', async function (req, res) {
+  // delete post
+  // const token = req.headers.authorization.split(' ')[1];
+  // const decoded = jwt.verify(token, 'secret');
+  // if (decoded.userId != req.body.user_id) return;
+  connection.query(
+    'DELETE FROM Posts WHERE post_id = ?',
+    [req.params.post_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
+});
+
 app.post('/api/likes/:post_id/:user_id', async function (req, res) {
   // create new like
   connection.query(
