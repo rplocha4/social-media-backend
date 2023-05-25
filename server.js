@@ -8,6 +8,7 @@ const cors = require('cors');
 const multer = require('multer');
 const http = require('http');
 const { Server } = require('socket.io');
+const { log } = require('console');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,9 +18,42 @@ const io = new Server(server, {
   },
 });
 
+const users = {};
 io.listen(3001);
 io.on('connection', (socket) => {
   console.log('a user connected');
+  socket.emit('id', { id: socket.id });
+  socket.on('username', ({ username }) => {
+    socket.username = username;
+    users[username] = socket.id;
+  });
+  socket.on('typing', ({ receiver, sender }) => {
+    if (users[receiver]) {
+      io.to(users[receiver]).emit('typing', {
+        sender,
+      });
+    }
+  });
+  socket.on('stop typing', ({ receiver, sender }) => {
+    if (users[receiver]) {
+      io.to(users[receiver]).emit('stop typing', {
+        sender,
+      });
+    }
+  });
+
+  socket.on('chat message', ({ receiver, message, sender }) => {
+    console.log(receiver, message, sender);
+    if (users[receiver]) {
+      io.to(users[receiver]).emit('chat message', {
+        message,
+        sender,
+      });
+    }
+  });
+  socket.on('disconnect', () => {
+    console.log('user disconnected');
+  });
 });
 
 app.use(cors());
