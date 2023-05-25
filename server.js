@@ -43,11 +43,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('chat message', ({ receiver, message, sender }) => {
-    console.log(receiver, message, sender);
     if (users[receiver]) {
       io.to(users[receiver]).emit('chat message', {
         message,
-        sender,
+        senderMsg: sender,
       });
     }
   });
@@ -191,6 +190,76 @@ app.post('/api/auth/login', async function (req, res) {
           message: 'User not found',
         });
       }
+    }
+  );
+});
+
+app.post('/api/follow/:user_id', async function (req, res) {
+  // follow user
+  // check if user is already following
+  connection.query(
+    'SELECT * FROM followers WHERE user_id = ? AND follower_id = ?',
+    [req.params.user_id, req.body.user_id],
+    (error, results) => {
+      if (results.length > 0) {
+        res.status(400).send({ message: 'Already following' });
+      } else {
+        connection.query(
+          'INSERT INTO followers (user_id, follower_id) VALUES (?, ?)',
+          [req.params.user_id, req.body.user_id],
+          (error, results) => {
+            if (error) res.status(500).send({ message: 'Server error' });
+            res.status(201).json({ message: 'User successfully followed' });
+          }
+        );
+      }
+    }
+  );
+});
+
+app.delete('/api/follow/:user_id', async function (req, res) {
+  // unfollow user
+  // check if user is already following
+  connection.query(
+    'SELECT * FROM followers WHERE user_id = ? AND follower_id = ?',
+    [req.params.user_id, req.body.user_id],
+    (error, results) => {
+      if (results.length > 0) {
+        connection.query(
+          'DELETE FROM followers WHERE user_id = ? AND follower_id = ?',
+          [req.params.user_id, req.body.user_id],
+          (error, results) => {
+            if (error) res.status(500).send({ message: 'Server error' });
+            res.status(201).json({ message: 'User successfully unfollowed' });
+          }
+        );
+      } else {
+        res.status(400).send({ message: 'Not following' });
+      }
+    }
+  );
+});
+
+app.get('/api/followers/:user_id', async function (req, res) {
+  // get all followers of user
+  connection.query(
+    'SELECT * FROM followers WHERE user_id = ?',
+    [req.params.user_id],
+    (error, results) => {
+      if (error) res.status(500).send({ message: 'Server error' });
+      res.status(200).json({ followers: results });
+    }
+  );
+});
+
+app.get('/api/following/:user_id', async function (req, res) {
+  // get all users user is following
+  connection.query(
+    'SELECT * FROM followers WHERE follower_id = ?',
+    [req.params.user_id],
+    (error, results) => {
+      if (error) res.status(500).send({ message: 'Server error' });
+      res.status(200).json({ following: results });
     }
   );
 });
@@ -390,7 +459,7 @@ app.post('/api/likes/:post_id/:user_id', async function (req, res) {
 app.get('/api/user/:username', async function (req, res) {
   // get user by username with  count of people that user follows and count of people that follow user
   connection.query(
-    'SELECT Users.*, (SELECT COUNT(*) FROM Friends WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) AS following, (SELECT COUNT(*) FROM Friends WHERE friend_id = (SELECT user_id FROM Users WHERE username = ?)) AS followers FROM Users WHERE username = ?',
+    'SELECT Users.*, (SELECT COUNT(*) FROM followers WHERE follower_id = (SELECT user_id FROM Users WHERE username = ?)) AS following, (SELECT COUNT(*) FROM followers WHERE user_id = (SELECT user_id FROM Users WHERE username = ?)) AS followers FROM Users WHERE username = ?',
     [req.params.username, req.params.username, req.params.username],
     (error, results) => {
       if (error) res.status(404).send({ message: 'User not found' });
@@ -413,29 +482,29 @@ app.get('/api/user/:username', async function (req, res) {
 //   );
 // });
 
-app.get('/api/followers/:user_id', async function (req, res) {
-  // get followers from user
-  connection.query(
-    'SELECT Users.* FROM Users INNER JOIN Friends ON Users.user_id = Friends.follower_id WHERE Friends.user_id = ?',
-    [req.params.user_id],
-    (error, results) => {
-      if (error) res.status(404).send({ message: 'Friends not found' });
-      res.status(200).json({ data: results });
-    }
-  );
-});
+// app.get('/api/followers/:user_id', async function (req, res) {
+//   // get followers from user
+//   connection.query(
+//     'SELECT Users.* FROM Users INNER JOIN Friends ON Users.user_id = Friends.follower_id WHERE Friends.user_id = ?',
+//     [req.params.user_id],
+//     (error, results) => {
+//       if (error) res.status(404).send({ message: 'Friends not found' });
+//       res.status(200).json({ data: results });
+//     }
+//   );
+// });
 
-app.get('/api/following/:user_id', async function (req, res) {
-  // get following from user
-  connection.query(
-    'SELECT Users.* FROM Users INNER JOIN Friends ON Users.user_id = Friends.user_id WHERE Friends.follower_id = ?',
-    [req.params.user_id],
-    (error, results) => {
-      if (error) res.status(404).send({ message: 'Following not found' });
-      res.status(200).json({ data: results });
-    }
-  );
-});
+// app.get('/api/following/:user_id', async function (req, res) {
+//   // get following from user
+//   connection.query(
+//     'SELECT Users.* FROM Users INNER JOIN Friends ON Users.user_id = Friends.user_id WHERE Friends.follower_id = ?',
+//     [req.params.user_id],
+//     (error, results) => {
+//       if (error) res.status(404).send({ message: 'Following not found' });
+//       res.status(200).json({ data: results });
+//     }
+//   );
+// });
 
 app.delete('/api/likes/:post_id/:user_id', async function (req, res) {
   // delete like
@@ -466,6 +535,17 @@ app.post('/api/comments/', upload.single('image'), async function (req, res) {
     (error, results) => {
       if (error) throw error;
       res.send(results);
+    }
+  );
+});
+
+app.get('/api/userid/:username', async function (req, res) {
+  console.log('asd');
+  connection.query(
+    'SELECT * FROM Users WHERE username = ?',
+    [req.params.username],
+    (error, results) => {
+      if (error) res.status(404).send({ message: 'User not found' });
     }
   );
 });
