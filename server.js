@@ -365,6 +365,26 @@ app.put(
     );
   }
 );
+
+app.put(
+  '/api/comment/:comment_id',
+  upload.single('image'),
+  async function (req, res) {
+    // update comment with or without image
+    let file = req.file;
+    if (file !== undefined) {
+      file = file.buffer
+    }
+    connection.query(
+      'UPDATE Comments SET content = ?, image = ? WHERE comment_id = ?',
+      [req.body.content, file, req.params.comment_id],
+      (error, results) => {
+        if (error) res.status(404).send({ message: 'Comments not found' });
+        res.status(200).json({ data: results });
+      }
+    );
+  }
+);
 app.get('/api/likes/:post_id', async function (req, res) {
   // get likes from post
   connection.query(
