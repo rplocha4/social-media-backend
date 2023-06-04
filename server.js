@@ -8,7 +8,6 @@ const cors = require('cors');
 const multer = require('multer');
 const http = require('http');
 const { Server } = require('socket.io');
-const { log } = require('console');
 
 const app = express();
 const server = http.createServer(app);
@@ -87,6 +86,7 @@ function convertAvatars(results) {
 }
 
 function convertImages(results) {
+  if (results === undefined) return [results];
   for (let i = 0; i < results.length; i++) {
     results[i].image =
       results[i].image &&
@@ -609,10 +609,45 @@ app.get('/api/messages/:user1_id/:user2_id', async function (req, res) {
   );
 });
 
+app.get('/api/conversations/:user_id', async function (req, res) {
+  // find all conversations from user return username and profile picture from other user
+  connection.query(
+    'SELECT * FROM conversations WHERE user1_id = ? OR user2_id = ?',
+    [req.params.user_id, req.params.user_id],
+    (error, results) => {
+      if (error) throw error;
+      console.log(results);
+      if (results.length === 0) {
+        res.send([]);
+      } else {
+        const data = [];
+        for (let i = 0; i < results.length; i++) {
+          connection.query(
+            'SELECT * FROM Users WHERE user_id = ?',
+            [
+              results[i].user1_id === parseInt(req.params.user_id)
+                ? results[i].user2_id
+                : results[i].user1_id,
+            ],
+            (error, results2) => {
+              if (error) throw error;
+              results2 = convertAvatars(results2);
+              data.push(results2[0]);
+              if (data.length === results.length) {
+                res.send(data);
+              }
+            }
+          );
+        }
+      }
+    }
+  );
+});
+
 app.post('/api/messages/', async function (req, res) {
   // create new message
   // check if conversation between users already exists if not create new conversation and add message to it
-  // console.log(req.body);
+  console.log(req.body);
   connection.query(
     'SELECT * FROM conversations WHERE (user1_id = ? AND user2_id  = ?) OR (user1_id = ? AND user2_id  = ?)',
     [
@@ -627,7 +662,9 @@ app.post('/api/messages/', async function (req, res) {
         connection.query(
           'INSERT INTO conversations (user1_id, user2_id) VALUES (?, ?)',
           [req.body.user1_id, req.body.user2_id],
+
           (error, results) => {
+            console.log(results);
             if (error) throw error;
             connection.query(
               'INSERT INTO messages (conversation_id, sender_id, message) VALUES (?, ?, ?)',
@@ -642,6 +679,7 @@ app.post('/api/messages/', async function (req, res) {
       } else {
         connection.query(
           'INSERT INTO messages (conversation_id, sender_id, message) VALUES (?, ?, ?)',
+
           [results[0].conversation_id, req.body.user1_id, req.body.message],
           (error, results) => {
             if (error) throw error;
