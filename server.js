@@ -244,10 +244,12 @@ app.delete('/api/follow/:user_id', async function (req, res) {
 app.get('/api/followers/:user_id', async function (req, res) {
   // get all followers of user
   connection.query(
-    'SELECT * FROM followers WHERE user_id = ?',
+    'SELECT * FROM Users WHERE user_id IN (SELECT follower_id FROM followers WHERE user_id = ?)',
     [req.params.user_id],
     (error, results) => {
       if (error) res.status(500).send({ message: 'Server error' });
+      results = convertAvatars(results);
+
       res.status(200).json({ followers: results });
     }
   );
@@ -256,10 +258,11 @@ app.get('/api/followers/:user_id', async function (req, res) {
 app.get('/api/following/:user_id', async function (req, res) {
   // get all users user is following
   connection.query(
-    'SELECT * FROM followers WHERE follower_id = ?',
+    'SELECT * FROM Users WHERE user_id IN (SELECT user_id FROM followers WHERE follower_id = ?)',
     [req.params.user_id],
     (error, results) => {
       if (error) res.status(500).send({ message: 'Server error' });
+      results = convertAvatars(results);
       res.status(200).json({ following: results });
     }
   );
@@ -268,7 +271,7 @@ app.get('/api/following/:user_id', async function (req, res) {
 app.get('/api/posts/friends/:user_id', async function (req, res) {
   // get all posts from user friends and self with user username and profile picture, also get the all comments, and likes from each post and check if user liked the post
   connection.query(
-    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT friend_id FROM Friends WHERE user_id = ?) OR Posts.user_id = ? ORDER BY Posts.timestamp DESC',
+    'SELECT Posts.*, Users.username, Users.avatar, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id) AS likes, (SELECT COUNT(*) FROM Comments WHERE post_id = Posts.post_id) AS comments, (SELECT COUNT(*) FROM Likes WHERE post_id = Posts.post_id AND user_id = ?) AS liked FROM Posts INNER JOIN Users ON Posts.user_id = Users.user_id WHERE Posts.user_id IN (SELECT user_id FROM followers WHERE follower_id = ?) OR Posts.user_id = ? ORDER BY Posts.timestamp DESC',
     [req.params.user_id, req.params.user_id, req.params.user_id],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
@@ -373,7 +376,7 @@ app.put(
     // update comment with or without image
     let file = req.file;
     if (file !== undefined) {
-      file = file.buffer
+      file = file.buffer;
     }
     connection.query(
       'UPDATE Comments SET content = ?, image = ? WHERE comment_id = ?',
@@ -602,7 +605,7 @@ app.put('/api/user/', upload.single('image'), async function (req, res) {
   if (req.body.avatar === 'true') {
     connection.query(
       'UPDATE Users SET avatar = ? WHERE user_id = ?',
-      [req.file.buffer, userId],
+      [req.file.buffer, req.body.user_id],
       (error, results) => {
         if (error) throw error;
         const avatar =
