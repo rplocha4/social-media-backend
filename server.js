@@ -88,6 +88,7 @@ function convertAvatars(results) {
 function convertImages(results) {
   if (results === undefined) return [results];
   for (let i = 0; i < results.length; i++) {
+    results[i].imageFile = results[i].image;
     results[i].image =
       results[i].image &&
       'data:image/jpeg;base64,' + results[i].image.toString('base64');
@@ -343,6 +344,27 @@ app.get('/api/post/:post_id', async function (req, res) {
     }
   );
 });
+
+app.put(
+  '/api/post/:post_id',
+  upload.single('image'),
+  async function (req, res) {
+    console.log('asd');
+    // update post with or without image
+    let file = req.file;
+    if (file !== undefined) {
+      file = file.buffer;
+    }
+    connection.query(
+      'UPDATE Posts SET content = ?, image = ? WHERE post_id = ?',
+      [req.body.content, file, req.params.post_id],
+      (error, results) => {
+        if (error) res.status(404).send({ message: 'Posts not found' });
+        res.status(200).json({ data: results });
+      }
+    );
+  }
+);
 app.get('/api/likes/:post_id', async function (req, res) {
   // get likes from post
   connection.query(
