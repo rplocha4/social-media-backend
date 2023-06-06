@@ -13,7 +13,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: 'https://social-media-backend-tfft.onrender.com',
   },
 });
 
@@ -170,6 +170,7 @@ app.post('/api/auth/login', async function (req, res) {
                 message: 'Auth successful',
                 token: token,
                 user: results[0],
+
                 avatar:
                   results[0].avatar &&
                   'data:image/jpeg;base64,' +
@@ -594,6 +595,15 @@ app.get('/api/userid/:username', async function (req, res) {
     }
   );
 });
+
+app.get('/api/users/'),
+  async function (req, res) {
+    // get all users
+    connection.query('SELECT * FROM Users', (error, results) => {
+      if (error) res.status(404).send({ message: 'Users not found' });
+      res.status(200).json({ data: results });
+    });
+  };
 
 app.put('/api/user/', upload.single('image'), async function (req, res) {
   // update users avatar or background image if it is not null
