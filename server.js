@@ -841,7 +841,7 @@ app.post('/api/replyLikes/:reply_id/:user_id', async function (req, res) {
 
 app.get('/api/events', (req, res) => {
   const query = `
-    SELECT e.id, e.name AS event_name, e.date, e.description, u.user_id AS user_id, u.username AS username, u.avatar AS avatar 
+    SELECT e.id, e.name AS event_name, e.date, e.description, e.image, u.user_id AS user_id, u.username AS username, u.avatar AS avatar 
     FROM events e
     LEFT JOIN user_event ue ON e.id = ue.event_id
     LEFT JOIN Users u ON ue.user_id = u.user_id
@@ -869,6 +869,7 @@ app.get('/api/events', (req, res) => {
             name: row.event_name,
             date: row.date,
             description: row.description,
+            image: row.image,
             users: [
               {
                 user_id: row.user_id,
@@ -889,6 +890,7 @@ app.get('/api/events', (req, res) => {
             id: event.id,
             name: event.name,
             date: event.date,
+            image: event.image,
             description: event.description,
             users: event.users.filter((user) => user.user_id !== null),
           };
@@ -899,10 +901,11 @@ app.get('/api/events', (req, res) => {
 });
 
 app.post('/api/events', (req, res) => {
-  const { name, date, description } = req.body;
+  const { name, date, description, image } = req.body;
 
-  const query = 'INSERT INTO events (name, date, description) VALUES (?, ?, ?)';
-  const values = [name, date, description];
+  const query =
+    'INSERT INTO events (name, date, description, image) VALUES (?, ?, ?, ?)';
+  const values = [name, date, description, image];
 
   connection.query(query, values, (err, results) => {
     if (err) {
@@ -950,10 +953,11 @@ app.get('/api/users/:user_id/events', (req, res) => {
   const user_id = req.params.user_id;
 
   const query = `
-    SELECT e.id, e.name AS event_name, e.date, e.description
+    SELECT e.id, e.name AS event_name, e.date, e.description, e.image, u.user_id AS user_id, u.username AS username, u.avatar AS avatar 
     FROM events e
     INNER JOIN user_event ue ON e.id = ue.event_id
-    WHERE ue.user_id = ?
+    LEFT JOIN Users u ON ue.user_id = u.user_id
+    WHERE u.user_id = ?
   `;
   const values = [user_id];
 
@@ -962,7 +966,50 @@ app.get('/api/users/:user_id/events', (req, res) => {
       console.error('Error executing MySQL query:', err);
       res.status(500).send('Error fetching user events');
     } else {
-      res.json(results);
+      const eventsWithUsers = results.reduce((events, row) => {
+        const event = events.find((event) => event.id === row.id);
+
+        if (event) {
+          event.users.push({
+            user_id: row.user_id,
+            username: row.username,
+            avatar: row.avatar
+              ? 'data:image/png;base64,' + row.avatar.toString('base64')
+              : '',
+          });
+        } else {
+          events.push({
+            id: row.id,
+            name: row.event_name,
+            date: row.date,
+            description: row.description,
+            image: row.image,
+            users: [
+              {
+                user_id: row.user_id,
+                username: row.username,
+                avatar: row.avatar
+                  ? 'data:image/png;base64,' + row.avatar.toString('base64')
+                  : '',
+              },
+            ],
+          });
+        }
+
+        return events;
+      }, []);
+      res.json(
+        eventsWithUsers.map((event) => {
+          return {
+            id: event.id,
+            name: event.name,
+            date: event.date,
+            image: event.image,
+            description: event.description,
+            users: event.users.filter((user) => user.user_id !== null),
+          };
+        })
+      );
     }
   });
 });
