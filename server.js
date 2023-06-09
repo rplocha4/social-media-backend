@@ -13,7 +13,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'https://social-media-backend-tfft.onrender.com',
+    origin: 'http://localhost:3000',
   },
 });
 
@@ -49,6 +49,35 @@ io.on('connection', (socket) => {
       });
     }
   });
+  socket.on('like', ({ author, liker }) => {
+    if (users[author]) {
+      io.to(users[author]).emit('like', {
+        liker,
+      });
+    }
+  });
+  socket.on('comment', ({ author, commenter }) => {
+    if (users[author]) {
+      io.to(users[author]).emit('comment', {
+        commenter,
+      });
+    }
+  });
+  socket.on('follow', ({ author, follower }) => {
+    if (users[author]) {
+      io.to(users[author]).emit('follow', {
+        follower,
+      });
+    }
+  });
+  socket.on('mention', ({ author, username }) => {
+    if (users[username]) {
+      io.to(users[username]).emit('mention', {
+        mentioner: author,
+      });
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('user disconnected');
   });
@@ -299,7 +328,7 @@ app.post('/api/posts/', upload.single('image'), async function (req, res) {
   }
 
   connection.query(
-    'INSERT INTO Posts (user_id, content,image) VALUES (?, ?,?)',
+    'INSERT INTO Posts (user_id, content, image) VALUES (?, ?,?)',
     [req.body.user_id, req.body.content, file],
     (error, results) => {
       if (error) res.status(404).send({ message: 'Posts not found' });
@@ -353,15 +382,22 @@ app.put(
   '/api/post/:post_id',
   upload.single('image'),
   async function (req, res) {
-    console.log('asd');
     // update post with or without image
     let file = req.file;
+    let blob = undefined;
     if (file !== undefined) {
       file = file.buffer;
     }
+    // console.log(req.body);
+
+    // if (req.body.img) {
+    //   const buffer = Buffer.from(req.body.img);
+    //   blob = new Blob([buffer]);
+    //   console.log(blob);
+    // }
     connection.query(
       'UPDATE Posts SET content = ?, image = ? WHERE post_id = ?',
-      [req.body.content, file, req.params.post_id],
+      [req.body.content, file ? file : blob, req.params.post_id],
       (error, results) => {
         if (error) res.status(404).send({ message: 'Posts not found' });
         res.status(200).json({ data: results });
@@ -596,14 +632,14 @@ app.get('/api/userid/:username', async function (req, res) {
   );
 });
 
-app.get('/api/users/'),
-  async function (req, res) {
-    // get all users
-    connection.query('SELECT * FROM Users', (error, results) => {
-      if (error) res.status(404).send({ message: 'Users not found' });
-      res.status(200).json({ data: results });
-    });
-  };
+app.get('/api/users/', async function (req, res) {
+  console.log('asd');
+  // get all users
+  connection.query('SELECT * FROM Users', (error, results) => {
+    if (error) res.status(404).send({ message: 'Users not found' });
+    res.status(200).json({ data: results });
+  });
+});
 
 app.put('/api/user/', upload.single('image'), async function (req, res) {
   // update users avatar or background image if it is not null
@@ -634,6 +670,18 @@ app.put('/api/user/', upload.single('image'), async function (req, res) {
       }
     );
   }
+});
+
+app.put('/api/user/:user_id', async function (req, res) {
+  //update user privacy
+  connection.query(
+    'UPDATE Users SET private = ? WHERE user_id = ?',
+    [req.body.setPrivate, req.params.user_id],
+    (error, results) => {
+      if (error) throw error;
+      res.send(results);
+    }
+  );
 });
 
 app.get('/api/messages/:user1_id/:user2_id', async function (req, res) {
@@ -789,6 +837,119 @@ app.post('/api/replyLikes/:reply_id/:user_id', async function (req, res) {
       res.send(results);
     }
   );
+});
+
+app.get('/api/events', (req, res) => {
+  const query = `
+    SELECT e.id, e.name AS event_name, e.date, e.description, u.id AS user_id, u.name AS username
+    FROM events e
+    LEFT JOIN user_event ue ON e.id = ue.event_id
+    LEFT JOIN users u ON ue.user_id = u.id
+  `;
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching events');
+    } else {
+      const eventsWithUsers = results.reduce((events, row) => {
+        const event = events.find((event) => event.id === row.id);
+
+        if (event) {
+          event.users.push({
+            id: row.user_id,
+            name: row.user_name,
+          });
+        } else {
+          events.push({
+            id: row.id,
+            name: row.event_name,
+            date: row.date,
+            description: row.description,
+            users: [
+              {
+                id: row.user_id,
+                name: row.user_name,
+              },
+            ],
+          });
+        }
+
+        return events;
+      }, []);
+
+      res.json(eventsWithUsers);
+    }
+  });
+});
+
+app.post('/api/events', (req, res) => {
+  const { name, date, description } = req.body;
+
+  const query = 'INSERT INTO events (name, date, description) VALUES (?, ?, ?)';
+  const values = [name, date, description];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error creating event');
+    } else {
+      res.status(201).send('Event created successfully');
+    }
+  });
+});
+app.post('/api/events/:eventId/join', (req, res) => {
+  const eventId = req.params.eventId;
+  const { userId } = req.body;
+
+  const query = 'INSERT INTO user_event (user_id, event_id) VALUES (?, ?)';
+  const values = [userId, eventId];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error joining event');
+    } else {
+      res.status(201).send('Joined event successfully');
+    }
+  });
+});
+
+app.post('/events/:eventId/resign', (req, res) => {
+  const eventId = req.params.eventId;
+  const { userId } = req.body;
+
+  const query = 'DELETE FROM user_event WHERE user_id = ? AND event_id = ?';
+  const values = [userId, eventId];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error resigning from event');
+    } else {
+      res.status(200).send('Resigned from event successfully');
+    }
+  });
+});
+app.get('/api/users/:userId/events', (req, res) => {
+  const userId = req.params.userId;
+
+  const query = `
+    SELECT e.id, e.name AS event_name, e.date, e.description
+    FROM events e
+    INNER JOIN user_event ue ON e.id = ue.event_id
+    WHERE ue.user_id = ?
+  `;
+  const values = [userId];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching user events');
+    } else {
+      res.json(results);
+    }
+  });
 });
 
 app.listen(port, () => {
