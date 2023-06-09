@@ -841,10 +841,10 @@ app.post('/api/replyLikes/:reply_id/:user_id', async function (req, res) {
 
 app.get('/api/events', (req, res) => {
   const query = `
-    SELECT e.id, e.name AS event_name, e.date, e.description, u.id AS user_id, u.name AS username
+    SELECT e.id, e.name AS event_name, e.date, e.description, u.user_id AS user_id, u.username AS username, u.avatar AS avatar 
     FROM events e
     LEFT JOIN user_event ue ON e.id = ue.event_id
-    LEFT JOIN users u ON ue.user_id = u.id
+    LEFT JOIN Users u ON ue.user_id = u.user_id
   `;
 
   connection.query(query, (err, results) => {
@@ -857,8 +857,11 @@ app.get('/api/events', (req, res) => {
 
         if (event) {
           event.users.push({
-            id: row.user_id,
-            name: row.user_name,
+            user_id: row.user_id,
+            username: row.username,
+            avatar: row.avatar
+              ? 'data:image/png;base64,' + row.avatar.toString('base64')
+              : '',
           });
         } else {
           events.push({
@@ -868,8 +871,11 @@ app.get('/api/events', (req, res) => {
             description: row.description,
             users: [
               {
-                id: row.user_id,
-                name: row.user_name,
+                user_id: row.user_id,
+                username: row.username,
+                avatar: row.avatar
+                  ? 'data:image/png;base64,' + row.avatar.toString('base64')
+                  : '',
               },
             ],
           });
@@ -877,8 +883,17 @@ app.get('/api/events', (req, res) => {
 
         return events;
       }, []);
-
-      res.json(eventsWithUsers);
+      res.json(
+        eventsWithUsers.map((event) => {
+          return {
+            id: event.id,
+            name: event.name,
+            date: event.date,
+            description: event.description,
+            users: event.users.filter((user) => user.user_id !== null),
+          };
+        })
+      );
     }
   });
 });
@@ -900,10 +915,10 @@ app.post('/api/events', (req, res) => {
 });
 app.post('/api/events/:eventId/join', (req, res) => {
   const eventId = req.params.eventId;
-  const { userId } = req.body;
+  const { user_id } = req.body;
 
   const query = 'INSERT INTO user_event (user_id, event_id) VALUES (?, ?)';
-  const values = [userId, eventId];
+  const values = [user_id, eventId];
 
   connection.query(query, values, (err, results) => {
     if (err) {
@@ -915,12 +930,12 @@ app.post('/api/events/:eventId/join', (req, res) => {
   });
 });
 
-app.post('/events/:eventId/resign', (req, res) => {
+app.post('/api/events/:eventId/resign', (req, res) => {
   const eventId = req.params.eventId;
-  const { userId } = req.body;
+  const { user_id } = req.body;
 
   const query = 'DELETE FROM user_event WHERE user_id = ? AND event_id = ?';
-  const values = [userId, eventId];
+  const values = [user_id, eventId];
 
   connection.query(query, values, (err, results) => {
     if (err) {
@@ -931,8 +946,8 @@ app.post('/events/:eventId/resign', (req, res) => {
     }
   });
 });
-app.get('/api/users/:userId/events', (req, res) => {
-  const userId = req.params.userId;
+app.get('/api/users/:user_id/events', (req, res) => {
+  const user_id = req.params.user_id;
 
   const query = `
     SELECT e.id, e.name AS event_name, e.date, e.description
@@ -940,7 +955,7 @@ app.get('/api/users/:userId/events', (req, res) => {
     INNER JOIN user_event ue ON e.id = ue.event_id
     WHERE ue.user_id = ?
   `;
-  const values = [userId];
+  const values = [user_id];
 
   connection.query(query, values, (err, results) => {
     if (err) {
