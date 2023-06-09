@@ -1014,6 +1014,227 @@ app.get('/api/users/:user_id/events', (req, res) => {
   });
 });
 
+app.post('/groups', (req, res) => {
+  const { groupName, adminId } = req.body;
+
+  const query = 'INSERT INTO Groups (group_name, admin_id) VALUES (?, ?)';
+  const values = [groupName, adminId];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error creating group');
+    } else {
+      res.status(201).send('Group created successfully');
+    }
+  });
+});
+
+app.get('/groups', (req, res) => {
+  const query = 'SELECT * FROM Groups';
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching groups');
+    } else {
+      res.json(results);
+    }
+  });
+});
+
+app.post('/groups/:groupId/request', (req, res) => {
+  const groupId = req.params.groupId;
+  const { user_id } = req.body;
+
+  const query =
+    'INSERT INTO GroupRequests (user_id, group_id, status) VALUES (?, ?, ?)';
+  const values = [user_id, groupId, 'pending'];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error sending join request');
+    } else {
+      res.status(201).send('Join request sent successfully');
+    }
+  });
+});
+
+app.put('/groups/:groupId/requests/:requestId', (req, res) => {
+  const groupId = req.params.groupId;
+  const requestId = req.params.requestId;
+  const decision = req.body.decision;
+
+  const user_id = req.body.user_id;
+
+  const updateRequestQuery =
+    'UPDATE GroupRequests SET status = ? WHERE request_id = ?';
+  connection.query(
+    updateRequestQuery,
+    [decision, requestId],
+    (err, updateRequestResults) => {
+      if (err) {
+        console.error('Error executing MySQL query:', err);
+        return res.status(500).send('Error updating join request');
+      }
+
+      if (updateRequestResults.affectedRows === 0) {
+        return res.status(404).send('Join request not found');
+      }
+
+      if (decision === 'accept') {
+        const addUserToGroupQuery =
+          'INSERT INTO group_users (group_id, user_id) VALUES (?, ?)';
+        connection.query(
+          addUserToGroupQuery,
+          [groupId, user_id],
+          (err, addUserToGroupResults) => {
+            if (err) {
+              console.error('Error executing MySQL query:', err);
+              return res.status(500).send('Error adding user to group');
+            }
+
+            return res
+              .status(200)
+              .send(
+                'Join request accepted and user added to the group successfully'
+              );
+          }
+        );
+      } else {
+        return res.status(200).send('Join request rejected');
+      }
+    }
+  );
+});
+app.get('/groups/:groupId/users/:userId/requests', (req, res) => {
+  const groupId = req.params.groupId;
+  const userId = req.params.userId;
+
+  const query =
+    'SELECT * FROM GroupRequests WHERE group_id = ? AND user_id = ?';
+  connection.query(query, [groupId, userId], (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      return res.status(500).send('Error checking join request');
+    }
+
+    const hasSentRequest = results.length > 0;
+    return res.json({ hasSentRequest });
+  });
+});
+
+app.get('/groups/:groupId/requests', (req, res) => {
+  const groupId = req.params.groupId;
+
+  const query = `
+    SELECT gr.request_id, gr.status, u.user_id, u.username, u.avatar
+    FROM GroupRequests gr
+    INNER JOIN Users u ON gr.user_id = u.user_id
+    WHERE gr.group_id = ?
+  `;
+  const values = [groupId];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching join requests');
+    } else {
+      const joinRequests = results.map((row) => ({
+        request_id: row.request_id,
+        status: row.status,
+        user_id: row.user_id,
+        username: row.username,
+        avatar: row.avatar
+          ? 'data:image/png;base64,' + row.avatar.toString('base64')
+          : '',
+      }));
+      res.json(joinRequests);
+    }
+  });
+});
+app.delete('/groups/:groupId/users/:userId', (req, res) => {
+  const groupId = req.params.groupId;
+  const userId = req.params.userId;
+
+  const deleteQuery =
+    'DELETE FROM group_users WHERE group_id = ? AND user_id = ?';
+  connection.query(deleteQuery, [groupId, userId], (err, deleteResults) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      return res.status(500).send('Error removing user from group');
+    }
+    if (deleteResults.affectedRows === 0) {
+      return res.status(404).send('User not found in the group');
+    }
+
+    return res.status(200).send('User removed from group successfully');
+  });
+});
+
+app.get('/groups/:groupId/users', (req, res) => {
+  const groupId = req.params.groupId;
+
+  const query = `
+    SELECT u.user_id, u.username, u.avatar
+    FROM Users u
+    INNER JOIN group_users gu ON u.user_id = gu.user_id
+    WHERE gu.group_id = ?
+  `;
+  const values = [groupId];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching users');
+    } else {
+      const users = results.map((row) => ({
+        user_id: row.user_id,
+        username: row.username,
+        avatar: row.avatar
+          ? 'data:image/png;base64,' + row.avatar.toString('base64')
+          : '',
+      }));
+      res.json(users);
+    }
+  });
+});
+
+app.post('/groups/:groupId/posts', (req, res) => {
+  const groupId = req.params.groupId;
+  const { userId, content } = req.body;
+
+  const query =
+    'INSERT INTO Posts (group_id, user_id, content) VALUES (?, ?, ?)';
+  const values = [groupId, userId, content];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error creating post');
+    } else {
+      res.status(201).send('Post created successfully');
+    }
+  });
+});
+
+app.get('/groups/:groupId/posts', (req, res) => {
+  const groupId = req.params.groupId;
+
+  const query = 'SELECT * FROM Posts WHERE group_id = ?';
+  const values = [groupId];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching posts');
+    } else {
+      res.json(results);
+    }
+  });
+});
+
 app.listen(port, () => {
   console.log(`App running on port ${port}.`);
 });
