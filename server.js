@@ -1014,36 +1014,130 @@ app.get('/api/users/:user_id/events', (req, res) => {
   });
 });
 
-app.post('/groups', (req, res) => {
-  const { groupName, adminId } = req.body;
+app.post('/api/groups', upload.single('image'), async (req, res) => {
+  const { name, admin_id } = req.body;
 
-  const query = 'INSERT INTO Groups (group_name, admin_id) VALUES (?, ?)';
-  const values = [groupName, adminId];
+  const groupQuery =
+    'INSERT INTO `Groups` (group_name, admin_id, background_image) VALUES (?, ?, ?)';
+  const groupValues = [name, admin_id, req.file.buffer];
 
-  connection.query(query, values, (err, results) => {
-    if (err) {
-      console.error('Error executing MySQL query:', err);
-      res.status(500).send('Error creating group');
-    } else {
-      res.status(201).send('Group created successfully');
+  connection.query(groupQuery, groupValues, (groupErr, groupResults) => {
+    if (groupErr) {
+      console.error('Error executing MySQL query:', groupErr);
+      return res.status(500).send('Error creating group');
     }
+
+    const groupId = groupResults.insertId;
+
+    const userQuery =
+      'INSERT INTO group_users (group_id, user_id) VALUES (?, ?)';
+    const userValues = [groupId, admin_id];
+
+    connection.query(userQuery, userValues, (userErr, userResults) => {
+      if (userErr) {
+        console.error('Error executing MySQL query:', userErr);
+        return res.status(500).send('Error adding user to the group');
+      }
+
+      res.status(201).send('Group created successfully');
+    });
   });
 });
 
-app.get('/groups', (req, res) => {
-  const query = 'SELECT * FROM Groups';
+app.get('/api/groups', (req, res) => {
+  const query = 'SELECT * FROM `Groups`';
 
   connection.query(query, (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
       res.status(500).send('Error fetching groups');
     } else {
-      res.json(results);
+      res.json(convertImages(results));
     }
   });
 });
 
-app.post('/groups/:groupId/request', (req, res) => {
+// Endpoint to get a single group by ID with users and posts
+app.get('/api/groups/:groupId', (req, res) => {
+  const groupId = req.params.groupId;
+
+  const query = `
+    SELECT
+      g.group_id,
+      g.admin_id,
+      g.group_name,
+      g.background_image,
+      u.user_id,
+      u.username,
+      u.avatar,
+      gp.post_id,
+      gp.content,
+      gp.image
+    FROM
+      \`Groups\` g
+      LEFT JOIN group_users gu ON g.group_id = gu.group_id
+      LEFT JOIN Users u ON gu.user_id = u.user_id
+      LEFT JOIN Group_Posts gp ON g.group_id = gp.group_id
+      
+    WHERE
+      g.group_id = ?
+    ORDER BY
+      gp.timestamp DESC
+  `;
+
+  connection.query(query, [groupId], (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      return res.status(500).send('Error fetching group');
+    }
+
+    if (results.length === 0) {
+      return res.status(404).send('Group not found');
+    }
+
+    const group = {
+      id: results[0].group_id,
+      name: results[0].group_name,
+      admin_id: results[0].admin_id,
+      background_image:
+        'data:image/png;base64,' +
+        results[0].background_image.toString('base64'),
+      users: [],
+      posts: [],
+    };
+
+    results.forEach((row) => {
+      if (row.user_id) {
+        if (!group.users.find((user) => user.id === row.user_id)) {
+          group.users.push({
+            id: row.user_id,
+            username: row.username,
+            avatar: 'data:image/png;base64,' + row.avatar.toString('base64'),
+          });
+        }
+      }
+
+      if (row.post_id) {
+        group.posts.push({
+          id: row.post_id,
+          content: row.content,
+          image: row.image
+            ? 'data:image/png;base64,' + row.image.toString('base64')
+            : '',
+          author: {
+            id: row.user_id,
+            username: row.username,
+            avatar: 'data:image/png;base64,' + row.avatar.toString('base64'),
+          },
+        });
+      }
+    });
+
+    return res.json(group);
+  });
+});
+
+app.post('/api/groups/:groupId/request', (req, res) => {
   const groupId = req.params.groupId;
   const { user_id } = req.body;
 
@@ -1061,7 +1155,7 @@ app.post('/groups/:groupId/request', (req, res) => {
   });
 });
 
-app.put('/groups/:groupId/requests/:requestId', (req, res) => {
+app.put('/api/groups/:groupId/request/:requestId', (req, res) => {
   const groupId = req.params.groupId;
   const requestId = req.params.requestId;
   const decision = req.body.decision;
@@ -1083,7 +1177,7 @@ app.put('/groups/:groupId/requests/:requestId', (req, res) => {
         return res.status(404).send('Join request not found');
       }
 
-      if (decision === 'accept') {
+      if (decision === 'accepted') {
         const addUserToGroupQuery =
           'INSERT INTO group_users (group_id, user_id) VALUES (?, ?)';
         connection.query(
@@ -1108,7 +1202,7 @@ app.put('/groups/:groupId/requests/:requestId', (req, res) => {
     }
   );
 });
-app.get('/groups/:groupId/users/:userId/requests', (req, res) => {
+app.get('/api/groups/:groupId/users/:userId/requests', (req, res) => {
   const groupId = req.params.groupId;
   const userId = req.params.userId;
 
@@ -1125,7 +1219,7 @@ app.get('/groups/:groupId/users/:userId/requests', (req, res) => {
   });
 });
 
-app.get('/groups/:groupId/requests', (req, res) => {
+app.get('/api/groups/:groupId/requests', (req, res) => {
   const groupId = req.params.groupId;
 
   const query = `
@@ -1154,7 +1248,7 @@ app.get('/groups/:groupId/requests', (req, res) => {
     }
   });
 });
-app.delete('/groups/:groupId/users/:userId', (req, res) => {
+app.delete('/api/groups/:groupId/users/:userId', (req, res) => {
   const groupId = req.params.groupId;
   const userId = req.params.userId;
 
@@ -1173,7 +1267,7 @@ app.delete('/groups/:groupId/users/:userId', (req, res) => {
   });
 });
 
-app.get('/groups/:groupId/users', (req, res) => {
+app.get('/api/groups/:groupId/users', (req, res) => {
   const groupId = req.params.groupId;
 
   const query = `
@@ -1201,25 +1295,35 @@ app.get('/groups/:groupId/users', (req, res) => {
   });
 });
 
-app.post('/groups/:groupId/posts', (req, res) => {
-  const groupId = req.params.groupId;
-  const { userId, content } = req.body;
+app.post(
+  '/api/groups/:groupId/posts',
+  upload.single('image'),
+  async (req, res) => {
+    const groupId = req.params.groupId;
+    const { user_id, content } = req.body;
+    console.log(req.file);
 
-  const query =
-    'INSERT INTO Posts (group_id, user_id, content) VALUES (?, ?, ?)';
-  const values = [groupId, userId, content];
-
-  connection.query(query, values, (err, results) => {
-    if (err) {
-      console.error('Error executing MySQL query:', err);
-      res.status(500).send('Error creating post');
-    } else {
-      res.status(201).send('Post created successfully');
+    let file = req.file;
+    if (file !== undefined) {
+      file = file.buffer;
     }
-  });
-});
 
-app.get('/groups/:groupId/posts', (req, res) => {
+    const query =
+      'INSERT INTO Group_Posts (group_id, user_id, content, image) VALUES (?, ?, ?,?)';
+    const values = [groupId, user_id, content, file];
+
+    connection.query(query, values, (err, results) => {
+      if (err) {
+        console.error('Error executing MySQL query:', err);
+        res.status(500).send('Error creating post');
+      } else {
+        res.status(201).send('Post created successfully');
+      }
+    });
+  }
+);
+
+app.get('/api/groups/:groupId/posts', (req, res) => {
   const groupId = req.params.groupId;
 
   const query = 'SELECT * FROM Posts WHERE group_id = ?';
@@ -1230,7 +1334,7 @@ app.get('/groups/:groupId/posts', (req, res) => {
       console.error('Error executing MySQL query:', err);
       res.status(500).send('Error fetching posts');
     } else {
-      res.json(results);
+      res.json(convertImages);
     }
   });
 });
