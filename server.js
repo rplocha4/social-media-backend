@@ -1069,8 +1069,12 @@ app.get('/api/groups/:groupId', (req, res) => {
       g.background_image,
       u.user_id,
       u.username,
-      u.avatar,
+      u.avatar AS avatar,
+      up.user_id AS post_user_id,
+      up.username AS post_username,
+      up.avatar AS post_avatar,
       gp.post_id,
+      gp.user_id AS post_user_id2,
       gp.content,
       gp.image
     FROM
@@ -1078,6 +1082,7 @@ app.get('/api/groups/:groupId', (req, res) => {
       LEFT JOIN group_users gu ON g.group_id = gu.group_id
       LEFT JOIN Users u ON gu.user_id = u.user_id
       LEFT JOIN Group_Posts gp ON g.group_id = gp.group_id
+      LEFT JOIN Users up ON gp.user_id = up.user_id
       
     WHERE
       g.group_id = ?
@@ -1107,6 +1112,7 @@ app.get('/api/groups/:groupId', (req, res) => {
     };
 
     results.forEach((row) => {
+      console.log(row);
       if (row.user_id) {
         if (!group.users.find((user) => user.id === row.user_id)) {
           group.users.push({
@@ -1118,18 +1124,21 @@ app.get('/api/groups/:groupId', (req, res) => {
       }
 
       if (row.post_id) {
-        group.posts.push({
-          id: row.post_id,
-          content: row.content,
-          image: row.image
-            ? 'data:image/png;base64,' + row.image.toString('base64')
-            : '',
-          author: {
-            id: row.user_id,
-            username: row.username,
-            avatar: 'data:image/png;base64,' + row.avatar.toString('base64'),
-          },
-        });
+        if (!group.posts.find((post) => post.id === row.post_id)) {
+          group.posts.push({
+            id: row.post_id,
+            content: row.content,
+            image: row.image
+              ? 'data:image/png;base64,' + row.image.toString('base64')
+              : '',
+            author: {
+              id: row.post_user_id,
+              username: row.post_username,
+              avatar:
+                'data:image/png;base64,' + row.post_avatar.toString('base64'),
+            },
+          });
+        }
       }
     });
 
