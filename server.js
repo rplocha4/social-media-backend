@@ -1044,21 +1044,34 @@ app.post('/api/groups', upload.single('image'), async (req, res) => {
   });
 });
 
-app.get('/api/groups', (req, res) => {
-  const query = 'SELECT * FROM `Groups`';
+app.get('/api/groups/:userId', async (req, res) => {
+  const userId = req.params.userId;
+  const query = `
+    SELECT g.group_id, g.group_name, g.background_image, IF(ug.user_id IS NULL, 0, 1) AS is_member
+    FROM \`Groups\` g
+    LEFT JOIN group_users ug ON g.group_id = ug.group_id AND ug.user_id = ?
+  `;
 
-  connection.query(query, (err, results) => {
+  connection.query(query, [userId], (err, results) => {
     if (err) {
       console.error('Error executing MySQL query:', err);
-      res.status(500).send('Error fetching groups');
-    } else {
-      res.json(convertImages(results));
+      return res.status(500).send('Error fetching groups');
     }
+
+    const groups = results.map((row) => ({
+      group_id: row.group_id,
+      group_name: row.group_name,
+      background_image:
+        'data:image/png;base64,' + row.background_image.toString('base64'),
+      is_member: row.is_member === 1,
+    }));
+
+    res.json(groups);
   });
 });
 
 // Endpoint to get a single group by ID with users and posts
-app.get('/api/groups/:groupId', (req, res) => {
+app.get('/api/group/:groupId', (req, res) => {
   const groupId = req.params.groupId;
 
   const query = `
@@ -1211,6 +1224,31 @@ app.put('/api/groups/:groupId/request/:requestId', (req, res) => {
     }
   );
 });
+
+app.get('/api/groups/:groupId/members/:userId', (req, res) => {
+  const groupId = req.params.groupId;
+  const userId = req.params.userId;
+
+  const query = `
+    SELECT COUNT(*) AS count
+    FROM group_users
+    WHERE group_id = ? AND user_id = ?
+  `;
+
+  connection.query(query, [groupId, userId], (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      return res.status(500).send('Error checking user membership');
+    }
+
+    const count = results[0].count;
+
+    return res.json({
+      inGroup: count > 0,
+    });
+  });
+});
+
 app.get('/api/groups/:groupId/users/:userId/requests', (req, res) => {
   const groupId = req.params.groupId;
   const userId = req.params.userId;
@@ -1223,7 +1261,8 @@ app.get('/api/groups/:groupId/users/:userId/requests', (req, res) => {
       return res.status(500).send('Error checking join request');
     }
 
-    const hasSentRequest = results.length > 0;
+    const hasSentRequest =
+      results.map((result) => result.status === 'pending')?.length > 0;
     return res.json({ hasSentRequest });
   });
 });
@@ -1273,6 +1312,29 @@ app.delete('/api/groups/:groupId/users/:userId', (req, res) => {
     }
 
     return res.status(200).send('User removed from group successfully');
+  });
+});
+
+app.delete('/api/groups/:groupId/requests/:userId', (req, res) => {
+  const groupId = req.params.groupId;
+  const userId = req.params.userId;
+
+  const query = `
+    DELETE FROM GroupRequests
+    WHERE group_id = ? AND user_id = ?
+  `;
+
+  connection.query(query, [groupId, userId], (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      return res.status(500).send('Error canceling request');
+    }
+
+    if (results.affectedRows === 0) {
+      return res.status(404).send('Request not found');
+    }
+
+    return res.status(204).send('Request canceled successfully');
   });
 });
 
