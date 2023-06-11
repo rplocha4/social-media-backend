@@ -1630,6 +1630,6 @@ app.get('/api/groups/:groupId/posts', (req, res) => {
   });
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`App running on port ${port}.`);
 });
