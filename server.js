@@ -83,7 +83,19 @@ io.on('connection', (socket) => {
   });
 });
 
-app.use(cors());
+app.use(
+  cors(
+    {
+      origin: 'https://social-media-backend-tfft.onrender.com',
+      credentials: true,
+    },
+    (req, callback) => {
+      callback(null, {
+        origin: true,
+      });
+    }
+  )
+);
 const port = 3000;
 app.use(bodyParser.json());
 app.use(
