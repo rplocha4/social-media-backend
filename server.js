@@ -135,12 +135,13 @@ function convertImages(results) {
 app.post('/api/auth/register', async function (req, res) {
   // create new user
   // check if username already exists
+  console.log(req.body);
   connection.query(
     'SELECT * FROM Users WHERE email = ?',
     [req.body.email],
     (error, results) => {
       if (results.length > 0) {
-        res.status(400).send({ message: 'Email already exists' });
+        return res.status(400).send({ message: 'Email already exists' }); // Add return statement here
       } else {
         bcrypt.hash(req.body.password, 10, (err, hash) => {
           if (err) {
@@ -149,11 +150,14 @@ app.post('/api/auth/register', async function (req, res) {
             });
           } else {
             connection.query(
-              'INSERT INTO Users (username, email, password) VALUES (?, ?, ?)',
-              [req.body.username, req.body.email, hash],
+              'INSERT INTO Users (username, email, password, private) VALUES (?, ?, ?, ?)',
+              [req.body.username, req.body.email, hash, 0],
               (error, results) => {
-                if (error) res.status(500).send({ message: 'Server error' });
-                res.status(201).json({ message: 'User successfully created' });
+                if (error)
+                  return res.status(500).send({ message: 'Server error' }); // Add return statement here
+                return res
+                  .status(201)
+                  .json({ message: 'User successfully created' }); // Add return statement here
               }
             );
           }
@@ -670,6 +674,222 @@ app.put('/api/user/', upload.single('image'), async function (req, res) {
       }
     );
   }
+});
+
+app.put('/api/users/:userId', (req, res) => {
+  const userId = req.params.userId;
+  const updates = req.body;
+  console.log(updates);
+
+  let query = 'UPDATE Users SET';
+  const values = [];
+
+  Object.keys(updates).forEach((key, index) => {
+    query += ` ${key} = ?,`;
+    values.push(updates[key]);
+  });
+
+  query = query.slice(0, -1);
+
+  query += ' WHERE user_id = ?';
+  values.push(userId);
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      return res.status(500).send('Error updating user');
+    }
+
+    if (results.affectedRows === 0) {
+      return res.status(404).send('User not found');
+    }
+
+    return res.status(200).send('User updated successfully');
+  });
+});
+app.delete('/api/users/:userId', (req, res) => {
+  const userId = req.params.userId;
+
+  const deleteGroupRequestsQuery =
+    'DELETE FROM GroupRequests WHERE user_id = ?';
+  const deleteUserQuery = 'DELETE FROM Users WHERE user_id = ?';
+
+  connection.beginTransaction((err) => {
+    if (err) {
+      console.error('Error starting database transaction:', err);
+      return res.status(500).send('Error deleting user');
+    }
+
+    connection.query(deleteGroupRequestsQuery, [userId], (err, results) => {
+      if (err) {
+        console.error('Error deleting group requests:', err);
+        connection.rollback(() => {
+          res.status(500).send('Error deleting user');
+        });
+      }
+
+      connection.query(deleteUserQuery, [userId], (err, results) => {
+        if (err) {
+          console.error('Error deleting user:', err);
+          connection.rollback(() => {
+            res.status(500).send('Error deleting user');
+          });
+        }
+
+        connection.commit((err) => {
+          if (err) {
+            console.error('Error committing transaction:', err);
+            connection.rollback(() => {
+              res.status(500).send('Error deleting user');
+            });
+          }
+
+          res.status(200).send('User deleted successfully');
+        });
+      });
+    });
+  });
+});
+
+app.post('/api/reports', (req, res) => {
+  const { user_id, post_id, comment_id, report_reason } = req.body;
+  console.log(req.body);
+
+  const query = `
+    INSERT INTO Reports (user_id, post_id, comment_id, report_reason, created_at)
+    VALUES (?, ?, ?, ?, NOW())
+  `;
+  const values = [user_id, post_id, comment_id, report_reason];
+
+  connection.query(query, values, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error creating report');
+    } else {
+      res.status(201).send('Report created successfully');
+    }
+  });
+});
+
+app.get('/api/reported-posts', (req, res) => {
+  const query = `
+    SELECT
+      p.post_id,
+      p.content AS content,
+      p.image AS image,
+      r.report_id,
+      r.report_reason,
+      r.created_at,
+      u.user_id,
+      u.username,
+      u.avatar
+    FROM
+      Posts p
+      INNER JOIN Reports r ON p.post_id = r.post_id
+      LEFT JOIN Users u ON u.user_id = r.user_id
+  `;
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching reported posts');
+    } else {
+      const reportedPosts = results.reduce((acc, row) => {
+        const postId = row.post_id;
+
+        if (!acc[postId]) {
+          acc[postId] = {
+            post_id: postId,
+            content: row.content,
+            image: row.image
+              ? 'data:image/png;base64,' + row.image.toString('base64')
+              : null,
+            reports: [],
+          };
+        }
+
+        if (row.report_id) {
+          acc[postId].reports.push({
+            report_id: row.report_id,
+            report_reason: row.report_reason,
+            created_at: row.created_at,
+            user: {
+              user_id: row.user_id,
+              username: row.username,
+              avatar: row.avatar
+                ? 'data:image/png;base64,' + row.avatar.toString('base64')
+                : null,
+            },
+          });
+        }
+
+        return acc;
+      }, {});
+
+      const reportedPostsArray = Object.values(reportedPosts);
+      res.json(reportedPostsArray);
+    }
+  });
+});
+app.get('/api/reported-comments', (req, res) => {
+  const query = `
+    SELECT
+      c.comment_id,
+      c.content AS content,
+      c.image AS image,
+      r.report_id,
+      r.report_reason,
+      r.created_at,
+      u.user_id,
+      u.username,
+      u.avatar
+    FROM
+      Comments c
+      INNER JOIN Reports r ON c.comment_id = r.comment_id
+      LEFT JOIN Users u ON u.user_id = r.user_id
+  `;
+
+  connection.query(query, (err, results) => {
+    if (err) {
+      console.error('Error executing MySQL query:', err);
+      res.status(500).send('Error fetching reported comments');
+    } else {
+      const reportedComments = results.reduce((acc, row) => {
+        const commentId = row.comment_id;
+
+        if (!acc[commentId]) {
+          acc[commentId] = {
+            comment_id: commentId,
+            content: row.content,
+            image: row.image
+              ? 'data:image/png;base64,' + row.image.toString('base64')
+              : null,
+            reports: [],
+          };
+        }
+
+        if (row.report_id) {
+          acc[commentId].reports.push({
+            report_id: row.report_id,
+            report_reason: row.report_reason,
+            created_at: row.created_at,
+            user: {
+              user_id: row.user_id,
+              username: row.username,
+              avatar: row.avatar
+                ? 'data:image/png;base64,' + row.avatar.toString('base64')
+                : null,
+            },
+          });
+        }
+
+        return acc;
+      }, {});
+
+      const reportedCommentsArray = Object.values(reportedComments);
+      res.json(reportedCommentsArray);
+    }
+  });
 });
 
 app.put('/api/user/:user_id', async function (req, res) {
