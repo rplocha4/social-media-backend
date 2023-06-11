@@ -140,7 +140,7 @@ app.post('/api/auth/register', async function (req, res) {
     'SELECT * FROM Users WHERE email = ?',
     [req.body.email],
     (error, results) => {
-      if (results.length > 0) {
+      if (results?.length > 0) {
         return res.status(400).send({ message: 'Email already exists' }); // Add return statement here
       } else {
         bcrypt.hash(req.body.password, 10, (err, hash) => {
@@ -175,7 +175,7 @@ app.post('/api/auth/login', async function (req, res) {
     'SELECT * FROM Users WHERE username = ?',
     [req.body.username],
     (error, results) => {
-      if (results.length > 0) {
+      if (results?.length > 0) {
         // check if password is correct
         bcrypt.compare(
           req.body.password,
@@ -236,7 +236,7 @@ app.post('/api/follow/:user_id', async function (req, res) {
     'SELECT * FROM followers WHERE user_id = ? AND follower_id = ?',
     [req.params.user_id, req.body.user_id],
     (error, results) => {
-      if (results.length > 0) {
+      if (results?.length > 0) {
         res.status(400).send({ message: 'Already following' });
       } else {
         connection.query(
@@ -259,7 +259,7 @@ app.delete('/api/follow/:user_id', async function (req, res) {
     'SELECT * FROM followers WHERE user_id = ? AND follower_id = ?',
     [req.params.user_id, req.body.user_id],
     (error, results) => {
-      if (results.length > 0) {
+      if (results?.length > 0) {
         connection.query(
           'DELETE FROM followers WHERE user_id = ? AND follower_id = ?',
           [req.params.user_id, req.body.user_id],
@@ -916,7 +916,7 @@ app.get('/api/messages/:user1_id/:user2_id', async function (req, res) {
     ],
     (error, results) => {
       if (error) throw error;
-      if (results.length === 0) {
+      if (results?.length === 0) {
         res.send([]);
       } else {
         connection.query(
@@ -940,7 +940,7 @@ app.get('/api/conversations/:user_id', async function (req, res) {
     (error, results) => {
       if (error) throw error;
       console.log(results);
-      if (results.length === 0) {
+      if (results?.length === 0) {
         res.send([]);
       } else {
         const data = [];
@@ -981,7 +981,7 @@ app.post('/api/messages/', async function (req, res) {
     ],
     (error, results) => {
       if (error) throw error;
-      if (results.length === 0) {
+      if (results?.length === 0) {
         connection.query(
           'INSERT INTO conversations (user1_id, user2_id) VALUES (?, ?)',
           [req.body.user1_id, req.body.user2_id],
@@ -1329,7 +1329,7 @@ app.get('/api/group/:groupId', (req, res) => {
       return res.status(500).send('Error fetching group');
     }
 
-    if (results.length === 0) {
+    if (results?.length === 0) {
       return res.status(404).send('Group not found');
     }
 
