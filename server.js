@@ -86,7 +86,7 @@ io.on('connection', (socket) => {
 app.use(
   cors(
     {
-      origin: 'https://social-media-backend-tfft.onrender.com',
+      origin: 'https://social-media-rplocha4.vercel.app/',
       credentials: true,
     },
     (req, callback) => {
