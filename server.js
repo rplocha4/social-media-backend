@@ -18,7 +18,7 @@ const io = new Server(server, {
 });
 
 const users = {};
-io.listen(443);
+io.listen(process.env.PORT || 3001);
 io.on('connection', (socket) => {
   console.log('a user connected');
   socket.emit('id', { id: socket.id });
@@ -83,20 +83,8 @@ io.on('connection', (socket) => {
   });
 });
 
-app.use(
-  cors(
-    {
-      origin: 'https://social-media-rplocha4.vercel.app/',
-      credentials: true,
-    },
-    (req, callback) => {
-      callback(null, {
-        origin: true,
-      });
-    }
-  )
-);
-const port = 3000;
+app.use(cors());
+const port = process.env.PORT;
 app.use(bodyParser.json());
 app.use(
   bodyParser.urlencoded({
