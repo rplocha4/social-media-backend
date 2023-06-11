@@ -18,7 +18,7 @@ const io = new Server(server, {
 });
 
 const users = {};
-io.listen(3001);
+io.listen(443);
 io.on('connection', (socket) => {
   console.log('a user connected');
   socket.emit('id', { id: socket.id });
