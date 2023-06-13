@@ -1181,7 +1181,7 @@ app.get('/api/users/:username/events', (req, res) => {
     WHERE u.username = ?
   `;
 
-  const values = [user_id];
+  const values = [username];
 
   connection.query(query, values, (err, results) => {
     if (err) {
