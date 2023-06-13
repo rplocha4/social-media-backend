@@ -229,7 +229,7 @@ app.post('/api/auth/login', async function (req, res) {
   );
 });
 
-app.post('/api/follow/:user_id', async function (req, res) {
+app.post('/api/follow/:username', async function (req, res) {
   // follow user
   // check if user is already following
   connection.query(
@@ -275,11 +275,11 @@ app.delete('/api/follow/:user_id', async function (req, res) {
   );
 });
 
-app.get('/api/followers/:user_id', async function (req, res) {
+app.get('/api/followers/:username', async function (req, res) {
   // get all followers of user
   connection.query(
-    'SELECT * FROM Users WHERE user_id IN (SELECT follower_id FROM followers WHERE user_id = ?)',
-    [req.params.user_id],
+    'SELECT * FROM Users WHERE user_id IN (SELECT follower_id FROM followers WHERE user_id = (SELECT user_id FROM Users WHERE username = ?))',
+    [req.params.username],
     (error, results) => {
       if (error) res.status(500).send({ message: 'Server error' });
       results = convertAvatars(results);
@@ -289,14 +289,15 @@ app.get('/api/followers/:user_id', async function (req, res) {
   );
 });
 
-app.get('/api/following/:user_id', async function (req, res) {
+app.get('/api/following/:username', async function (req, res) {
   // get all users user is following
   connection.query(
-    'SELECT * FROM Users WHERE user_id IN (SELECT user_id FROM followers WHERE follower_id = ?)',
-    [req.params.user_id],
+    'SELECT * FROM Users WHERE user_id IN (SELECT user_id FROM followers WHERE follower_id = (SELECT user_id FROM Users WHERE username = ?))',
+    [req.params.username],
     (error, results) => {
       if (error) res.status(500).send({ message: 'Server error' });
       results = convertAvatars(results);
+
       res.status(200).json({ following: results });
     }
   );
@@ -1169,16 +1170,17 @@ app.post('/api/events/:eventId/resign', (req, res) => {
     }
   });
 });
-app.get('/api/users/:user_id/events', (req, res) => {
-  const user_id = req.params.user_id;
+app.get('/api/users/:username/events', (req, res) => {
+  const username = req.params.username;
 
   const query = `
-    SELECT e.id, e.name AS event_name, e.date, e.description, e.image, u.user_id AS user_id, u.username AS username, u.avatar AS avatar 
+    SELECT e.id, e.name AS event_name, e.date, e.description, e.image, u.user_id AS user_id, u.username AS username, u.avatar AS avatar
     FROM events e
-    INNER JOIN user_event ue ON e.id = ue.event_id
+    LEFT JOIN user_event ue ON e.id = ue.event_id
     LEFT JOIN Users u ON ue.user_id = u.user_id
-    WHERE u.user_id = ?
+    WHERE u.username = ?
   `;
+
   const values = [user_id];
 
   connection.query(query, values, (err, results) => {
