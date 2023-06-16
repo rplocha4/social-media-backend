@@ -13,12 +13,15 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'https://social-media-backend-tfft.onrender.com',
+    origin: [
+      'https://social-media-backend-tfft.onrender.com',
+      'http://localhost:3000',
+    ],
   },
 });
 
 const users = {};
-io.listen(443);
+io.listen(3001);
 io.on('connection', (socket) => {
   console.log('a user connected');
   socket.emit('id', { id: socket.id });
@@ -84,7 +87,7 @@ io.on('connection', (socket) => {
 });
 
 app.use(cors());
-const port = process.env.PORT;
+const port = 3000;
 app.use(bodyParser.json());
 app.use(
   bodyParser.urlencoded({
@@ -229,7 +232,7 @@ app.post('/api/auth/login', async function (req, res) {
   );
 });
 
-app.post('/api/follow/:username', async function (req, res) {
+app.post('/api/follow/:user_id', async function (req, res) {
   // follow user
   // check if user is already following
   connection.query(
