@@ -21,7 +21,7 @@ const io = new Server(server, {
 });
 
 const users = {};
-io.listen(3001);
+io.listen(443);
 io.on('connection', (socket) => {
   console.log('a user connected');
   socket.emit('id', { id: socket.id });
@@ -87,7 +87,7 @@ io.on('connection', (socket) => {
 });
 
 app.use(cors());
-const port = 3000;
+const port = process.env.PORT || 3000;
 app.use(bodyParser.json());
 app.use(
   bodyParser.urlencoded({
