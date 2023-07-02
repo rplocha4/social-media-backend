@@ -376,13 +376,7 @@ app.put(
     if (file !== undefined) {
       file = file.buffer;
     }
-    // console.log(req.body);
-
-    // if (req.body.img) {
-    //   const buffer = Buffer.from(req.body.img);
-    //   blob = new Blob([buffer]);
-    //   console.log(blob);
-    // }
+    
     connection.query(
       'UPDATE Posts SET content = ?, image = ? WHERE post_id = ?',
       [req.body.content, file ? file : blob, req.params.post_id],
